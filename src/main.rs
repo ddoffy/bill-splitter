@@ -6,14 +6,12 @@ use axum::{
 };
 use askama::Template;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufReader, BufWriter};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use sqlx::{SqlitePool, sqlite::SqlitePoolOptions, FromRow};
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -31,10 +29,11 @@ struct Person {
     is_receiver: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Session {
-    people: Vec<Person>,
+#[derive(Debug, FromRow)]
+struct DbSession {
+    id: String,
     edit_secret: String,
+    people: String,
     created_at: DateTime<Utc>,
     last_accessed_at: DateTime<Utc>,
 }
@@ -88,10 +87,9 @@ struct CalculateResponse {
     settlements: Vec<Settlement>,
 }
 
-type AppState = Arc<Mutex<HashMap<String, Session>>>;
+type AppState = SqlitePool;
 
-const DATA_FILE: &str = "sessions.json";
-const SESSION_EXPIRY_DAYS: i64 = 30;
+const SESSION_EXPIRY_DAYS: i64 = 7;
 
 #[tokio::main]
 async fn main() {
@@ -103,15 +101,32 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let sessions = load_sessions();
-    let state = Arc::new(Mutex::new(sessions));
+    let db_url = "sqlite:sessions.db?mode=rwc";
+    let pool = SqlitePoolOptions::new()
+        .connect(db_url)
+        .await
+        .expect("Failed to connect to database");
 
-    // Spawn a background task to clean up expired sessions periodically
-    let cleanup_state = state.clone();
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            edit_secret TEXT NOT NULL,
+            people TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            last_accessed_at DATETIME NOT NULL
+        )
+        "#
+    )
+    .execute(&pool)
+    .await
+    .expect("Failed to create table");
+
+    let cleanup_pool = pool.clone();
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await; // Check every hour
-            cleanup_expired_sessions(&cleanup_state);
+            cleanup_expired_sessions(&cleanup_pool).await;
         }
     });
 
@@ -121,7 +136,7 @@ async fn main() {
         .route("/api/sessions", post(create_session))
         .route("/api/sessions/:id", get(get_session).put(update_session))
         .nest_service("/static", ServeDir::new("static"))
-        .with_state(state);
+        .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:7777")
         .await
@@ -132,44 +147,20 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-fn load_sessions() -> HashMap<String, Session> {
-    if let Ok(file) = File::open(DATA_FILE) {
-        let reader = BufReader::new(file);
-        match serde_json::from_reader(reader) {
-            Ok(sessions) => {
-                tracing::info!("Loaded sessions from file");
-                return sessions;
-            }
-            Err(e) => {
-                tracing::error!("Failed to parse sessions file: {}", e);
+async fn cleanup_expired_sessions(pool: &SqlitePool) {
+    let threshold = Utc::now() - chrono::Duration::days(SESSION_EXPIRY_DAYS);
+    let result = sqlx::query("DELETE FROM sessions WHERE last_accessed_at < ?")
+        .bind(threshold)
+        .execute(pool)
+        .await;
+    
+    match result {
+        Ok(r) => {
+            if r.rows_affected() > 0 {
+                tracing::info!("Cleaned up {} expired sessions", r.rows_affected());
             }
         }
-    }
-    HashMap::new()
-}
-
-fn save_sessions(sessions: &HashMap<String, Session>) {
-    if let Ok(file) = File::create(DATA_FILE) {
-        let writer = BufWriter::new(file);
-        if let Err(e) = serde_json::to_writer(writer, sessions) {
-            tracing::error!("Failed to save sessions to file: {}", e);
-        }
-    }
-}
-
-fn cleanup_expired_sessions(state: &AppState) {
-    let mut sessions = state.lock().unwrap();
-    let now = Utc::now();
-    let initial_len = sessions.len();
-    
-    sessions.retain(|_, session| {
-        let age = now.signed_duration_since(session.last_accessed_at);
-        age.num_days() < SESSION_EXPIRY_DAYS
-    });
-    
-    if sessions.len() < initial_len {
-        tracing::info!("Cleaned up {} expired sessions", initial_len - sessions.len());
-        save_sessions(&sessions);
+        Err(e) => tracing::error!("Failed to cleanup sessions: {}", e),
     }
 }
 
@@ -178,23 +169,25 @@ async fn index() -> impl IntoResponse {
 }
 
 async fn create_session(
-    State(state): State<AppState>,
+    State(pool): State<AppState>,
     Json(request): Json<CreateSessionRequest>,
 ) -> Json<CreateSessionResponse> {
-    let mut sessions = state.lock().unwrap();
     let id = Uuid::new_v4().to_string();
     let edit_secret = Uuid::new_v4().to_string();
     let now = Utc::now();
+    let people_json = serde_json::to_string(&request.people).unwrap_or_default();
     
-    let session = Session {
-        people: request.people,
-        edit_secret: edit_secret.clone(),
-        created_at: now,
-        last_accessed_at: now,
-    };
-    
-    sessions.insert(id.clone(), session);
-    save_sessions(&sessions);
+    sqlx::query(
+        "INSERT INTO sessions (id, edit_secret, people, created_at, last_accessed_at) VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(&edit_secret)
+    .bind(&people_json)
+    .bind(now)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .unwrap();
     
     Json(CreateSessionResponse {
         id,
@@ -203,24 +196,31 @@ async fn create_session(
 }
 
 async fn get_session(
-    State(state): State<AppState>,
+    State(pool): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<GetSessionResponse>, axum::http::StatusCode> {
-    let mut sessions = state.lock().unwrap();
-    if let Some(session) = sessions.get_mut(&id) {
-        // Update last accessed time
-        session.last_accessed_at = Utc::now();
-        // We don't save on every read to avoid excessive IO, 
-        // but we could if strict accuracy is needed. 
-        // For now, let's save periodically or on write.
-        // Actually, let's save on read too to prevent premature expiry if only read.
-        // To avoid blocking, we could clone and save in background, but for simplicity:
-        let people = session.people.clone();
-        
-        // Drop lock before saving? No, save_sessions needs reference or clone.
-        // Let's just save. It's a small file.
-        save_sessions(&sessions);
+    let now = Utc::now();
+    
+    let update_result = sqlx::query("UPDATE sessions SET last_accessed_at = ? WHERE id = ?")
+        .bind(now)
+        .bind(&id)
+        .execute(&pool)
+        .await;
 
+    if let Err(_) = update_result {
+        return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let row: Option<DbSession> = sqlx::query_as("SELECT * FROM sessions WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Some(session) = row {
+        let people: Vec<Person> = serde_json::from_str(&session.people)
+            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+            
         Ok(Json(GetSessionResponse {
             people,
         }))
@@ -230,29 +230,44 @@ async fn get_session(
 }
 
 async fn update_session(
-    State(state): State<AppState>,
+    State(pool): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
     Json(request): Json<UpdateSessionRequest>,
 ) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
-    let mut sessions = state.lock().unwrap();
-    
-    if let Some(session) = sessions.get_mut(&id) {
-        let secret_header = headers.get("X-Edit-Secret")
-            .and_then(|h| h.to_str().ok());
+    let secret_header = headers.get("X-Edit-Secret")
+        .and_then(|h| h.to_str().ok());
+        
+    if let Some(secret) = secret_header {
+        let row: Option<(String,)> = sqlx::query_as("SELECT edit_secret FROM sessions WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
             
-        if let Some(secret) = secret_header {
-            if secret == session.edit_secret {
-                session.people = request.people;
-                session.last_accessed_at = Utc::now();
-                save_sessions(&sessions);
+        if let Some((stored_secret,)) = row {
+            if stored_secret == secret {
+                let people_json = serde_json::to_string(&request.people)
+                    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+                let now = Utc::now();
+                
+                sqlx::query("UPDATE sessions SET people = ?, last_accessed_at = ? WHERE id = ?")
+                    .bind(people_json)
+                    .bind(now)
+                    .bind(&id)
+                    .execute(&pool)
+                    .await
+                    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+                    
                 return Ok(Json(serde_json::json!({"success": true})));
+            } else {
+                return Err(axum::http::StatusCode::FORBIDDEN);
             }
+        } else {
+            return Err(axum::http::StatusCode::NOT_FOUND);
         }
-        Err(axum::http::StatusCode::FORBIDDEN)
-    } else {
-        Err(axum::http::StatusCode::NOT_FOUND)
     }
+    Err(axum::http::StatusCode::FORBIDDEN)
 }
 
 async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<CalculateResponse> {
