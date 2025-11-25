@@ -1,5 +1,6 @@
 // State management
 let people = [];
+let history = [];
 let editingPersonId = null;
 let currentSessionId = null;
 let currentEditSecret = null;
@@ -27,6 +28,8 @@ const viewLinkInput = document.getElementById('viewLink');
 const editLinkInput = document.getElementById('editLink');
 const copyViewLinkBtn = document.getElementById('copyViewLink');
 const copyEditLinkBtn = document.getElementById('copyEditLink');
+const archiveBtn = document.getElementById('archiveBtn');
+const historyList = document.getElementById('historyList');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -37,6 +40,7 @@ cancelEditBtn.addEventListener('click', cancelEdit);
 if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
 if (copyEditLinkBtn) copyEditLinkBtn.addEventListener('click', () => copyToClipboard(editLinkInput, copyEditLinkBtn));
+if (archiveBtn) archiveBtn.addEventListener('click', archiveSession);
 
 function copyToClipboard(inputElement, buttonElement) {
     inputElement.select();
@@ -81,6 +85,8 @@ function toggleSponsorAmount() {
 init();
 
 async function init() {
+    loadHistoryFromLocalStorage();
+
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session');
     const secret = urlParams.get('secret');
@@ -498,3 +504,143 @@ function displayResults(result) {
     resultsSection.style.display = 'block';
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+// History Management
+
+function loadHistoryFromLocalStorage() {
+    try {
+        const storedHistory = localStorage.getItem('splitBillsHistory');
+        if (storedHistory) {
+            history = JSON.parse(storedHistory);
+        } else {
+            history = [];
+        }
+        renderHistory();
+    } catch (error) {
+        console.error('Error loading history:', error);
+        history = [];
+    }
+}
+
+function saveHistoryToLocalStorage() {
+    localStorage.setItem('splitBillsHistory', JSON.stringify(history));
+    renderHistory();
+}
+
+function renderHistory() {
+    if (!historyList) return;
+    
+    historyList.innerHTML = '';
+    
+    if (history.length === 0) {
+        historyList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">No archives yet</div>';
+        return;
+    }
+    
+    history.slice().reverse().forEach((item, index) => {
+        // Calculate actual index in original array
+        const originalIndex = history.length - 1 - index;
+        
+        const el = document.createElement('div');
+        el.className = 'history-item';
+        el.style.background = '#f7fafc';
+        el.style.border = '1px solid #e2e8f0';
+        el.style.borderRadius = '6px';
+        el.style.padding = '10px';
+        el.style.marginBottom = '10px';
+        
+        const date = new Date(item.timestamp).toLocaleDateString();
+        const total = item.people.reduce((sum, p) => sum + p.amount_spent, 0).toFixed(2);
+        const count = item.people.length;
+        
+        el.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span style="font-weight: bold; font-size: 0.9em;">${date}</span>
+                <span style="font-size: 0.8em; color: #666;">$${total}</span>
+            </div>
+            <div style="font-size: 0.8em; color: #666; margin-bottom: 8px;">
+                ${count} participants
+            </div>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="useTemplate(${originalIndex})" class="btn btn-sm" style="flex: 1; background: #4299e1; color: white; padding: 4px; font-size: 0.8em; border: none; border-radius: 4px; cursor: pointer;">Use Template</button>
+                <button onclick="deleteHistoryItem(${originalIndex})" class="btn btn-sm" style="background: #e53e3e; color: white; padding: 4px 8px; font-size: 0.8em; border: none; border-radius: 4px; cursor: pointer;">×</button>
+            </div>
+        `;
+        
+        historyList.appendChild(el);
+    });
+}
+
+function archiveSession() {
+    if (people.length === 0) {
+        alert('Nothing to archive!');
+        return;
+    }
+    
+    if (!confirm('This will save the current session to history and clear the workspace. Continue?')) {
+        return;
+    }
+    
+    const historyItem = {
+        timestamp: Date.now(),
+        people: JSON.parse(JSON.stringify(people)), // Deep copy
+        sessionId: currentSessionId
+    };
+    
+    history.push(historyItem);
+    saveHistoryToLocalStorage();
+    
+    // Clear current session
+    clearAllPeople();
+    
+    // If we were in a shared session, reset URL to home
+    if (currentSessionId) {
+        window.history.pushState({}, '', '/');
+        currentSessionId = null;
+        currentEditSecret = null;
+        isReadOnly = false;
+        document.body.classList.remove('read-only');
+        if (addPersonForm) addPersonForm.style.display = 'block';
+        if (clearAllBtn) clearAllBtn.style.display = 'block';
+        if (shareBtn) shareBtn.style.display = 'block';
+        if (shareLinks) shareLinks.style.display = 'none';
+    }
+}
+
+function useTemplate(index) {
+    if (people.length > 0) {
+        if (!confirm('This will overwrite your current workspace. Continue?')) {
+            return;
+        }
+    }
+    
+    const item = history[index];
+    if (!item) return;
+    
+    // Deep copy people from history
+    people = JSON.parse(JSON.stringify(item.people));
+    
+    // Reset session context
+    currentSessionId = null;
+    currentEditSecret = null;
+    isReadOnly = false;
+    document.body.classList.remove('read-only');
+    if (addPersonForm) addPersonForm.style.display = 'block';
+    if (clearAllBtn) clearAllBtn.style.display = 'block';
+    if (shareBtn) shareBtn.style.display = 'block';
+    if (shareLinks) shareLinks.style.display = 'none';
+    window.history.pushState({}, '', '/');
+    
+    savePeople();
+    renderPeople(people);
+}
+
+function deleteHistoryItem(index) {
+    if (!confirm('Delete this archive?')) return;
+    history.splice(index, 1);
+    saveHistoryToLocalStorage();
+}
+
+// Expose functions to global scope for inline onclick handlers
+window.useTemplate = useTemplate;
+window.deleteHistoryItem = deleteHistoryItem;
