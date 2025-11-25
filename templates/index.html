@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Splitter</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>💰 Bill Splitter</h1>
+        
+        <div class="card">
+            <h2>Add Person</h2>
+            <form id="addPersonForm">
+                <div class="form-group">
+                    <label for="personName">Name:</label>
+                    <input type="text" id="personName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description (Optional):</label>
+                    <input type="text" id="description" placeholder="e.g. Drinks, Taxi">
+                </div>
+                
+                <div class="form-group">
+                    <label for="amountSpent">Amount Spent:</label>
+                    <input type="number" id="amountSpent" step="0.01" min="0" value="0" required>
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="isSponsor">
+                        Is Sponsor
+                    </label>
+                </div>
+
+                <div class="form-group" id="sponsorAmountGroup" style="display: none;">
+                    <label for="sponsorAmount">Sponsor Amount:</label>
+                    <input type="number" id="sponsorAmount" step="0.01" min="0" value="0">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Add Person</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin-bottom: 0;">People</h2>
+                <button id="clearAllBtn" class="btn btn-danger" style="width: auto; padding: 8px 16px;">Clear All</button>
+            </div>
+            <div id="peopleList" class="people-list"></div>
+        </div>
+
+        <div class="card">
+            <h2>Settings</h2>
+            <div class="form-group checkbox-group">
+                <label>
+                    <input type="checkbox" id="includeSponsorInSplit" checked>
+                    Include sponsors in equal split
+                </label>
+            </div>
+            <div class="form-group checkbox-group">
+                <label>
+                    <input type="checkbox" id="restrictSponsorToSpent" checked>
+                    Restrict sponsorship to total spent (prevent negative share)
+                </label>
+            </div>
+            <button id="calculateBtn" class="btn btn-success">Calculate Split</button>
+        </div>
+
+        <div id="resultsSection" class="card results-section" style="display: none;">
+            <h2>Results</h2>
+            <div class="summary">
+                <p><strong>Total Spent:</strong> $<span id="totalSpent">0.00</span></p>
+                <p><strong>Total Sponsored:</strong> $<span id="totalSponsored">0.00</span></p>
+                <p><strong>Amount to Share:</strong> $<span id="amountToShare">0.00</span></p>
+                <p><strong>Number of Participants:</strong> <span id="numParticipants">0</span></p>
+                <p><strong>Per Person Share:</strong> $<span id="perPersonShare">0.00</span></p>
+            </div>
+            <h3>Settlements</h3>
+            <div id="settlementsList" class="settlements-list"></div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=1"></script>
+</body>
+</html>
