@@ -25,6 +25,8 @@ const shareBtn = document.getElementById('shareBtn');
 const shareLinks = document.getElementById('shareLinks');
 const viewLinkInput = document.getElementById('viewLink');
 const editLinkInput = document.getElementById('editLink');
+const copyViewLinkBtn = document.getElementById('copyViewLink');
+const copyEditLinkBtn = document.getElementById('copyEditLink');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -33,6 +35,40 @@ clearAllBtn.addEventListener('click', clearAllPeople);
 isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
 cancelEditBtn.addEventListener('click', cancelEdit);
 if (shareBtn) shareBtn.addEventListener('click', shareSplit);
+if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
+if (copyEditLinkBtn) copyEditLinkBtn.addEventListener('click', () => copyToClipboard(editLinkInput, copyEditLinkBtn));
+
+function copyToClipboard(inputElement, buttonElement) {
+    inputElement.select();
+    inputElement.setSelectionRange(0, 99999); // For mobile devices
+    
+    // Try using the modern clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(inputElement.value).then(() => {
+            showCopyFeedback(buttonElement);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            // Fallback
+            document.execCommand('copy');
+            showCopyFeedback(buttonElement);
+        });
+    } else {
+        // Fallback for older browsers or non-secure contexts
+        document.execCommand('copy');
+        showCopyFeedback(buttonElement);
+    }
+}
+
+function showCopyFeedback(buttonElement) {
+    const originalText = buttonElement.textContent;
+    buttonElement.textContent = 'Copied!';
+    buttonElement.style.background = '#48bb78'; // Green
+    
+    setTimeout(() => {
+        buttonElement.textContent = originalText;
+        buttonElement.style.background = '#718096'; // Original gray
+    }, 2000);
+}
 
 function toggleSponsorAmount() {
     sponsorAmountGroup.style.display = isSponsorCheckbox.checked ? 'block' : 'none';
