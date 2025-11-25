@@ -13,7 +13,7 @@ use std::io::{BufReader, BufWriter};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Utc};
 
 #[derive(Template)]
 #[template(path = "index.html")]
