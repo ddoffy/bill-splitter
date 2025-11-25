@@ -281,3 +281,38 @@ h3 {
         margin-top: 10px;
     }
 }
+
+.input-group {
+    display: flex;
+    width: 100%;
+}
+
+.input-group input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid #e0e0e0;
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    font-size: 0.9em;
+    outline: none;
+    min-width: 0; /* Prevent overflow */
+}
+
+.input-group input:focus {
+    border-color: #667eea;
+    z-index: 1; /* Bring border above button border if needed */
+}
+
+.input-group .btn-copy {
+    width: auto;
+    padding: 8px 16px;
+    background: #718096;
+    color: white;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.9em;
+    white-space: nowrap;
+}
+
+.input-group .btn-copy:hover {
+    background: #4a5568;
+}
