@@ -1,6 +1,9 @@
 // State management
 let people = [];
 let editingPersonId = null;
+let currentSessionId = null;
+let currentEditSecret = null;
+let isReadOnly = false;
 
 // DOM elements
 const addPersonForm = document.getElementById('addPersonForm');
@@ -18,6 +21,10 @@ const clearAllBtn = document.getElementById('clearAllBtn');
 const resultsSection = document.getElementById('resultsSection');
 const submitBtn = document.getElementById('submitBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
+const shareBtn = document.getElementById('shareBtn');
+const shareLinks = document.getElementById('shareLinks');
+const viewLinkInput = document.getElementById('viewLink');
+const editLinkInput = document.getElementById('editLink');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -25,6 +32,7 @@ calculateBtn.addEventListener('click', calculateSplit);
 clearAllBtn.addEventListener('click', clearAllPeople);
 isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
 cancelEditBtn.addEventListener('click', cancelEdit);
+if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 
 function toggleSponsorAmount() {
     sponsorAmountGroup.style.display = isSponsorCheckbox.checked ? 'block' : 'none';
@@ -33,11 +41,50 @@ function toggleSponsorAmount() {
     }
 }
 
-// Initialize: Load people from local storage
-loadPeople();
+// Initialize
+init();
 
-// Load people from local storage
-function loadPeople() {
+async function init() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session');
+    const secret = urlParams.get('secret');
+
+    if (sessionId) {
+        currentSessionId = sessionId;
+        currentEditSecret = secret;
+        
+        if (!secret) {
+            isReadOnly = true;
+            document.body.classList.add('read-only');
+            if (addPersonForm) addPersonForm.style.display = 'none';
+            if (clearAllBtn) clearAllBtn.style.display = 'none';
+            if (shareBtn) shareBtn.style.display = 'none';
+        }
+        
+        await loadSession(sessionId);
+    } else {
+        loadPeopleFromLocalStorage();
+    }
+}
+
+async function loadSession(id) {
+    try {
+        const response = await fetch(`/api/sessions/${id}`);
+        if (response.ok) {
+            const data = await response.json();
+            people = data.people;
+            renderPeople(people);
+        } else {
+            alert('Session not found! Loading local data instead.');
+            loadPeopleFromLocalStorage();
+        }
+    } catch (e) {
+        console.error(e);
+        loadPeopleFromLocalStorage();
+    }
+}
+
+function loadPeopleFromLocalStorage() {
     try {
         const storedPeople = localStorage.getItem('splitBillsPeople');
         if (storedPeople) {
@@ -53,10 +100,62 @@ function loadPeople() {
     }
 }
 
-// Save people to local storage
-function savePeople() {
+// Save people
+async function savePeople() {
+    // Always save to local storage as backup/cache
     localStorage.setItem('splitBillsPeople', JSON.stringify(people));
     renderPeople(people);
+    
+    // If we are in an editable session, sync to server
+    if (currentSessionId && currentEditSecret) {
+        try {
+            await fetch(`/api/sessions/${currentSessionId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Edit-Secret': currentEditSecret
+                },
+                body: JSON.stringify({ people })
+            });
+        } catch (e) {
+            console.error('Failed to sync session', e);
+        }
+    }
+}
+
+async function shareSplit() {
+    if (people.length === 0) {
+        alert('Add some expenses first!');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ people })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            currentSessionId = data.id;
+            currentEditSecret = data.edit_secret;
+            
+            const baseUrl = window.location.origin;
+            const viewUrl = `${baseUrl}/?session=${data.id}`;
+            const editUrl = `${baseUrl}/?session=${data.id}&secret=${data.edit_secret}`;
+            
+            viewLinkInput.value = viewUrl;
+            editLinkInput.value = editUrl;
+            shareLinks.style.display = 'block';
+            
+            // Update URL without reloading
+            window.history.pushState({}, '', editUrl);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to create share link');
+    }
 }
 
 // Add person to the list
@@ -215,7 +314,7 @@ function renderPeople(people) {
                     </label>
                 </div>
             </div>
-            <div class="person-actions" style="display: flex; gap: 5px; flex-direction: column;">
+            <div class="person-actions" style="display: flex; gap: 5px; flex-direction: column; ${isReadOnly ? 'display: none !important;' : ''}">
                 <button class="btn" style="background: #4299e1; color: white; padding: 6px 12px; font-size: 14px; width: auto;" onclick="editPerson(${person.id})">Edit</button>
                 <button class="btn btn-danger" onclick="removePerson(${person.id})">Remove</button>
             </div>

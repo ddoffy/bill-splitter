@@ -17,6 +17,28 @@
                     <h2>Participants <span id="uniquePeopleCount" style="font-size: 0.8em; color: #666; font-weight: normal;">(0)</span></h2>
                     <div id="participantsList" class="participants-list"></div>
                 </div>
+                
+                <div class="card">
+                    <h2>Share</h2>
+                    <button id="shareBtn" class="btn btn-primary" style="background: #805ad5;">Share Split</button>
+                    <div id="shareLinks" style="display: none; margin-top: 15px;">
+                        <div style="margin-bottom: 10px;">
+                            <label style="font-size: 0.85em; font-weight: bold; color: #555;">View Only Link:</label>
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="text" id="viewLink" readonly style="flex: 1; padding: 5px; font-size: 0.85em;">
+                                <button class="btn" id="copyViewLink" style="padding: 5px 10px; font-size: 0.8em; width: auto; background: #718096; color: white;">Copy</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85em; font-weight: bold; color: #555;">Edit Link:</label>
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="text" id="editLink" readonly style="flex: 1; padding: 5px; font-size: 0.85em;">
+                                <button class="btn" id="copyEditLink" style="padding: 5px 10px; font-size: 0.8em; width: auto; background: #718096; color: white;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75em; color: #e53e3e; margin-top: 2px;">Don't share this with everyone!</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Main Content -->

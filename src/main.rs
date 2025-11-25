@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use uuid::Uuid;
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -27,15 +28,31 @@ struct Person {
     is_receiver: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Session {
+    people: Vec<Person>,
+    edit_secret: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-struct AddPersonRequest {
-    name: String,
-    description: Option<String>,
-    amount_spent: f64,
-    is_sponsor: bool,
-    sponsor_amount: Option<f64>,
-    #[serde(default)]
-    is_receiver: bool,
+struct CreateSessionRequest {
+    people: Vec<Person>,
+}
+
+#[derive(Debug, Serialize)]
+struct CreateSessionResponse {
+    id: String,
+    edit_secret: String,
+}
+
+#[derive(Debug, Serialize)]
+struct GetSessionResponse {
+    people: Vec<Person>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct UpdateSessionRequest {
+    people: Vec<Person>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,7 +83,7 @@ struct CalculateResponse {
     settlements: Vec<Settlement>,
 }
 
-type AppState = Arc<Mutex<Vec<Person>>>;
+type AppState = Arc<Mutex<HashMap<String, Session>>>;
 
 #[tokio::main]
 async fn main() {
@@ -78,13 +95,13 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let state = Arc::new(Mutex::new(Vec::<Person>::new()));
+    let state = Arc::new(Mutex::new(HashMap::<String, Session>::new()));
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/api/people", get(get_people).post(add_person))
-        .route("/api/people/:id", axum::routing::delete(remove_person))
         .route("/api/calculate", post(calculate_split))
+        .route("/api/sessions", post(create_session))
+        .route("/api/sessions/:id", get(get_session).put(update_session))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state);
 
@@ -101,37 +118,63 @@ async fn index() -> impl IntoResponse {
     Html(IndexTemplate.render().unwrap())
 }
 
-async fn get_people(State(state): State<AppState>) -> Json<Vec<Person>> {
-    let people = state.lock().unwrap();
-    Json(people.clone())
-}
-
-async fn add_person(
+async fn create_session(
     State(state): State<AppState>,
-    Json(request): Json<AddPersonRequest>,
-) -> Json<Person> {
-    let mut people = state.lock().unwrap();
-    let id = people.len() as u64 + 1;
-    let person = Person {
-        id,
-        name: request.name,
-        description: request.description.unwrap_or_default(),
-        amount_spent: request.amount_spent,
-        is_sponsor: request.is_sponsor,
-        sponsor_amount: request.sponsor_amount.unwrap_or(0.0),
-        is_receiver: request.is_receiver,
+    Json(request): Json<CreateSessionRequest>,
+) -> Json<CreateSessionResponse> {
+    let mut sessions = state.lock().unwrap();
+    let id = Uuid::new_v4().to_string();
+    let edit_secret = Uuid::new_v4().to_string();
+    
+    let session = Session {
+        people: request.people,
+        edit_secret: edit_secret.clone(),
     };
-    people.push(person.clone());
-    Json(person)
+    
+    sessions.insert(id.clone(), session);
+    
+    Json(CreateSessionResponse {
+        id,
+        edit_secret,
+    })
 }
 
-async fn remove_person(
+async fn get_session(
     State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<u64>,
-) -> impl IntoResponse {
-    let mut people = state.lock().unwrap();
-    people.retain(|p| p.id != id);
-    Json(serde_json::json!({"success": true}))
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<GetSessionResponse>, axum::http::StatusCode> {
+    let sessions = state.lock().unwrap();
+    if let Some(session) = sessions.get(&id) {
+        Ok(Json(GetSessionResponse {
+            people: session.people.clone(),
+        }))
+    } else {
+        Err(axum::http::StatusCode::NOT_FOUND)
+    }
+}
+
+async fn update_session(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+    Json(request): Json<UpdateSessionRequest>,
+) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+    let mut sessions = state.lock().unwrap();
+    
+    if let Some(session) = sessions.get_mut(&id) {
+        let secret_header = headers.get("X-Edit-Secret")
+            .and_then(|h| h.to_str().ok());
+            
+        if let Some(secret) = secret_header {
+            if secret == session.edit_secret {
+                session.people = request.people;
+                return Ok(Json(serde_json::json!({"success": true})));
+            }
+        }
+        Err(axum::http::StatusCode::FORBIDDEN)
+    } else {
+        Err(axum::http::StatusCode::NOT_FOUND)
+    }
 }
 
 async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<CalculateResponse> {
