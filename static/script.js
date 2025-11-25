@@ -377,6 +377,11 @@ function renderParticipants(people) {
     const uniqueNames = [...new Set(people.map(p => p.name))].sort();
     uniquePeopleCount.textContent = `(${uniqueNames.length})`;
 
+    const datalist = document.getElementById('participantsDatalist');
+    if (datalist) {
+        datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+    }
+
     if (uniqueNames.length === 0) {
         participantsList.innerHTML = '<div style="color: #888; font-style: italic;">No participants yet</div>';
         return;
@@ -551,7 +556,10 @@ function renderHistory() {
         
         const date = new Date(item.timestamp).toLocaleDateString();
         const total = item.people.reduce((sum, p) => sum + p.amount_spent, 0).toFixed(2);
-        const count = item.people.length;
+        
+        const uniqueNames = [...new Set(item.people.map(p => p.name))].sort();
+        const count = uniqueNames.length;
+        const namesList = uniqueNames.join(', ');
         
         el.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
@@ -559,7 +567,7 @@ function renderHistory() {
                 <span style="font-size: 0.8em; color: #666;">$${total}</span>
             </div>
             <div style="font-size: 0.8em; color: #666; margin-bottom: 8px;">
-                ${count} participants
+                <strong>${count} Participants:</strong> <span style="font-style: italic;">${namesList}</span>
             </div>
             <div style="display: flex; gap: 5px;">
                 <button onclick="useTemplate(${originalIndex})" class="btn btn-sm" style="flex: 1; background: #4299e1; color: white; padding: 4px; font-size: 0.8em; border: none; border-radius: 4px; cursor: pointer;">Use Template</button>
