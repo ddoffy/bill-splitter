@@ -1,5 +1,6 @@
 // State management
 let people = [];
+let editingPersonId = null;
 
 // DOM elements
 const addPersonForm = document.getElementById('addPersonForm');
@@ -15,12 +16,15 @@ const restrictSponsorCheckbox = document.getElementById('restrictSponsorToSpent'
 const calculateBtn = document.getElementById('calculateBtn');
 const clearAllBtn = document.getElementById('clearAllBtn');
 const resultsSection = document.getElementById('resultsSection');
+const submitBtn = document.getElementById('submitBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
 calculateBtn.addEventListener('click', calculateSplit);
 clearAllBtn.addEventListener('click', clearAllPeople);
 isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
+cancelEditBtn.addEventListener('click', cancelEdit);
 
 function toggleSponsorAmount() {
     sponsorAmountGroup.style.display = isSponsorCheckbox.checked ? 'block' : 'none';
@@ -66,37 +70,108 @@ function handleAddPerson(e) {
     const sponsorAmount = isSponsor ? parseFloat(sponsorAmountInput.value) : 0;
     
     if (name && amount >= 0) {
-        const newPerson = {
-            id: Date.now(),
-            name,
-            description,
-            amount_spent: amount,
-            is_sponsor: isSponsor,
-            sponsor_amount: sponsorAmount,
-            is_receiver: false
-        };
+        if (editingPersonId) {
+            // Update existing person
+            people = people.map(p => {
+                if (p.id === editingPersonId) {
+                    return {
+                        ...p,
+                        name,
+                        description,
+                        amount_spent: amount,
+                        is_sponsor: isSponsor,
+                        sponsor_amount: sponsorAmount
+                    };
+                }
+                return p;
+            });
+            
+            // Reset edit mode
+            cancelEdit();
+        } else {
+            // Add new person
+            const newPerson = {
+                id: Date.now(),
+                name,
+                description,
+                amount_spent: amount,
+                is_sponsor: isSponsor,
+                sponsor_amount: sponsorAmount,
+                is_receiver: false
+            };
 
-        people.push(newPerson);
+            people.push(newPerson);
+            
+            // Reset form
+            personNameInput.value = '';
+            descriptionInput.value = '';
+            amountSpentInput.value = '0';
+            isSponsorCheckbox.checked = false;
+            sponsorAmountInput.value = '0';
+            toggleSponsorAmount();
+            
+            // Focus back on name input for quick entry
+            personNameInput.focus();
+        }
+        
         savePeople();
         
-        // Reset form
-        personNameInput.value = '';
-        descriptionInput.value = '';
-        amountSpentInput.value = '0';
-        isSponsorCheckbox.checked = false;
-        sponsorAmountInput.value = '0';
-        toggleSponsorAmount();
-        
-        // Hide results when adding new person
+        // Hide results when modifying list
         resultsSection.style.display = 'none';
-        
-        // Focus back on name input for quick entry
-        personNameInput.focus();
     }
+}
+
+// Edit person
+function editPerson(id) {
+    const person = people.find(p => p.id === id);
+    if (!person) return;
+    
+    editingPersonId = id;
+    
+    // Populate form
+    personNameInput.value = person.name;
+    descriptionInput.value = person.description || '';
+    amountSpentInput.value = person.amount_spent;
+    isSponsorCheckbox.checked = person.is_sponsor;
+    sponsorAmountInput.value = person.sponsor_amount;
+    
+    toggleSponsorAmount();
+    
+    // Update UI for edit mode
+    submitBtn.textContent = 'Update Person';
+    submitBtn.classList.remove('btn-primary');
+    submitBtn.classList.add('btn-success');
+    cancelEditBtn.style.display = 'block';
+    
+    // Scroll to form
+    addPersonForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    personNameInput.focus();
+}
+
+// Cancel edit
+function cancelEdit() {
+    editingPersonId = null;
+    
+    // Reset form
+    personNameInput.value = '';
+    descriptionInput.value = '';
+    amountSpentInput.value = '0';
+    isSponsorCheckbox.checked = false;
+    sponsorAmountInput.value = '0';
+    toggleSponsorAmount();
+    
+    // Reset UI
+    submitBtn.textContent = 'Add Person';
+    submitBtn.classList.remove('btn-success');
+    submitBtn.classList.add('btn-primary');
+    cancelEditBtn.style.display = 'none';
 }
 
 // Remove person from list
 function removePerson(id) {
+    if (editingPersonId === id) {
+        cancelEdit();
+    }
     people = people.filter(p => p.id !== id);
     savePeople();
     resultsSection.style.display = 'none';
@@ -138,7 +213,10 @@ function renderPeople(people) {
                     </label>
                 </div>
             </div>
-            <button class="btn btn-danger" onclick="removePerson(${person.id})">Remove</button>
+            <div class="person-actions" style="display: flex; gap: 5px; flex-direction: column;">
+                <button class="btn" style="background: #4299e1; color: white; padding: 6px 12px; font-size: 14px; width: auto;" onclick="editPerson(${person.id})">Edit</button>
+                <button class="btn btn-danger" onclick="removePerson(${person.id})">Remove</button>
+            </div>
         </div>
     `).join('');
 }
