@@ -8,9 +8,12 @@ use askama::Template;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
+use chrono::{DateTime, Utc, Duration};
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -32,6 +35,8 @@ struct Person {
 struct Session {
     people: Vec<Person>,
     edit_secret: String,
+    created_at: DateTime<Utc>,
+    last_accessed_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,6 +90,9 @@ struct CalculateResponse {
 
 type AppState = Arc<Mutex<HashMap<String, Session>>>;
 
+const DATA_FILE: &str = "sessions.json";
+const SESSION_EXPIRY_DAYS: i64 = 30;
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
@@ -95,7 +103,17 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let state = Arc::new(Mutex::new(HashMap::<String, Session>::new()));
+    let sessions = load_sessions();
+    let state = Arc::new(Mutex::new(sessions));
+
+    // Spawn a background task to clean up expired sessions periodically
+    let cleanup_state = state.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await; // Check every hour
+            cleanup_expired_sessions(&cleanup_state);
+        }
+    });
 
     let app = Router::new()
         .route("/", get(index))
@@ -114,6 +132,47 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+fn load_sessions() -> HashMap<String, Session> {
+    if let Ok(file) = File::open(DATA_FILE) {
+        let reader = BufReader::new(file);
+        match serde_json::from_reader(reader) {
+            Ok(sessions) => {
+                tracing::info!("Loaded sessions from file");
+                return sessions;
+            }
+            Err(e) => {
+                tracing::error!("Failed to parse sessions file: {}", e);
+            }
+        }
+    }
+    HashMap::new()
+}
+
+fn save_sessions(sessions: &HashMap<String, Session>) {
+    if let Ok(file) = File::create(DATA_FILE) {
+        let writer = BufWriter::new(file);
+        if let Err(e) = serde_json::to_writer(writer, sessions) {
+            tracing::error!("Failed to save sessions to file: {}", e);
+        }
+    }
+}
+
+fn cleanup_expired_sessions(state: &AppState) {
+    let mut sessions = state.lock().unwrap();
+    let now = Utc::now();
+    let initial_len = sessions.len();
+    
+    sessions.retain(|_, session| {
+        let age = now.signed_duration_since(session.last_accessed_at);
+        age.num_days() < SESSION_EXPIRY_DAYS
+    });
+    
+    if sessions.len() < initial_len {
+        tracing::info!("Cleaned up {} expired sessions", initial_len - sessions.len());
+        save_sessions(&sessions);
+    }
+}
+
 async fn index() -> impl IntoResponse {
     Html(IndexTemplate.render().unwrap())
 }
@@ -125,13 +184,17 @@ async fn create_session(
     let mut sessions = state.lock().unwrap();
     let id = Uuid::new_v4().to_string();
     let edit_secret = Uuid::new_v4().to_string();
+    let now = Utc::now();
     
     let session = Session {
         people: request.people,
         edit_secret: edit_secret.clone(),
+        created_at: now,
+        last_accessed_at: now,
     };
     
     sessions.insert(id.clone(), session);
+    save_sessions(&sessions);
     
     Json(CreateSessionResponse {
         id,
@@ -143,10 +206,23 @@ async fn get_session(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<GetSessionResponse>, axum::http::StatusCode> {
-    let sessions = state.lock().unwrap();
-    if let Some(session) = sessions.get(&id) {
+    let mut sessions = state.lock().unwrap();
+    if let Some(session) = sessions.get_mut(&id) {
+        // Update last accessed time
+        session.last_accessed_at = Utc::now();
+        // We don't save on every read to avoid excessive IO, 
+        // but we could if strict accuracy is needed. 
+        // For now, let's save periodically or on write.
+        // Actually, let's save on read too to prevent premature expiry if only read.
+        // To avoid blocking, we could clone and save in background, but for simplicity:
+        let people = session.people.clone();
+        
+        // Drop lock before saving? No, save_sessions needs reference or clone.
+        // Let's just save. It's a small file.
+        save_sessions(&sessions);
+
         Ok(Json(GetSessionResponse {
-            people: session.people.clone(),
+            people,
         }))
     } else {
         Err(axum::http::StatusCode::NOT_FOUND)
@@ -168,6 +244,8 @@ async fn update_session(
         if let Some(secret) = secret_header {
             if secret == session.edit_secret {
                 session.people = request.people;
+                session.last_accessed_at = Utc::now();
+                save_sessions(&sessions);
                 return Ok(Json(serde_json::json!({"success": true})));
             }
         }
