@@ -1,0 +1,14 @@
+[Unit]
+Description=Split Bills Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=doffy
+WorkingDirectory=/home/doffy/workspace/rust/split-bills
+ExecStart=/home/doffy/workspace/rust/split-bills/target/release/split-bills
+Restart=always
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target
