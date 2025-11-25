@@ -7,12 +7,23 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="container">
+    <div class="container" style="max-width: 1200px;">
         <h1>💰 Bill Splitter</h1>
         
-        <div class="card">
-            <h2>Add Person</h2>
-            <form id="addPersonForm">
+        <div class="app-layout" style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+            <!-- Sidebar for Participants -->
+            <div class="sidebar" style="flex: 0 0 250px; min-width: 250px;">
+                <div class="card">
+                    <h2>Participants <span id="uniquePeopleCount" style="font-size: 0.8em; color: #666; font-weight: normal;">(0)</span></h2>
+                    <div id="participantsList" class="participants-list"></div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-content" style="flex: 1; min-width: 300px;">
+                <div class="card">
+                    <h2>Add Expense</h2>
+                    <form id="addPersonForm">
                 <div class="form-group">
                     <label for="personName">Name:</label>
                     <input type="text" id="personName" required>
@@ -47,13 +58,13 @@
             </form>
         </div>
 
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin-bottom: 0;">People</h2>
-                <button id="clearAllBtn" class="btn btn-danger" style="width: auto; padding: 8px 16px;">Clear All</button>
-            </div>
-            <div id="peopleList" class="people-list"></div>
-        </div>
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin-bottom: 0;">Expenses</h2>
+                        <button id="clearAllBtn" class="btn btn-danger" style="width: auto; padding: 8px 16px;">Clear All</button>
+                    </div>
+                    <div id="peopleList" class="people-list"></div>
+                </div>
 
         <div class="card">
             <h2>Settings</h2>
@@ -72,19 +83,21 @@
             <button id="calculateBtn" class="btn btn-success">Calculate Split</button>
         </div>
 
-        <div id="resultsSection" class="card results-section" style="display: none;">
-            <h2>Results</h2>
-            <div class="summary">
-                <p><strong>Total Spent:</strong> $<span id="totalSpent">0.00</span></p>
-                <p><strong>Total Sponsored:</strong> $<span id="totalSponsored">0.00</span></p>
-                <p><strong>Amount to Share:</strong> $<span id="amountToShare">0.00</span></p>
-                <p><strong>Number of Participants:</strong> <span id="numParticipants">0</span></p>
-                <p><strong>Per Person Share:</strong> $<span id="perPersonShare">0.00</span></p>
+            <div id="resultsSection" class="card results-section" style="display: none;">
+                <h2>Results</h2>
+                <div class="summary">
+                    <p><strong>Total Spent:</strong> $<span id="totalSpent">0.00</span></p>
+                    <p><strong>Total Sponsored:</strong> $<span id="totalSponsored">0.00</span></p>
+                    <p><strong>Amount to Share:</strong> $<span id="amountToShare">0.00</span></p>
+                    <p><strong>Number of Participants:</strong> <span id="numParticipants">0</span></p>
+                    <p><strong>Per Person Share:</strong> $<span id="perPersonShare">0.00</span></p>
+                </div>
+                <h3>Settlements</h3>
+                <div id="settlementsList" class="settlements-list"></div>
             </div>
-            <h3>Settlements</h3>
-            <div id="settlementsList" class="settlements-list"></div>
         </div>
     </div>
+</div>
 
     <script src="/static/script.js?v=1"></script>
 </body>

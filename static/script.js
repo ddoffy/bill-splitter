@@ -188,8 +188,10 @@ function clearAllPeople() {
 
 // Render people list
 function renderPeople(people) {
+    renderParticipants(people);
+
     if (!people || people.length === 0) {
-        peopleList.innerHTML = '<div class="empty-message">No people added yet. Add someone to get started!</div>';
+        peopleList.innerHTML = '<div class="empty-message">No expenses added yet. Add one to get started!</div>';
         return;
     }
     
@@ -217,6 +219,32 @@ function renderPeople(people) {
                 <button class="btn" style="background: #4299e1; color: white; padding: 6px 12px; font-size: 14px; width: auto;" onclick="editPerson(${person.id})">Edit</button>
                 <button class="btn btn-danger" onclick="removePerson(${person.id})">Remove</button>
             </div>
+        </div>
+    `).join('');
+}
+
+function renderParticipants(people) {
+    const participantsList = document.getElementById('participantsList');
+    const uniquePeopleCount = document.getElementById('uniquePeopleCount');
+    
+    if (!people) {
+        participantsList.innerHTML = '';
+        uniquePeopleCount.textContent = '(0)';
+        return;
+    }
+
+    const uniqueNames = [...new Set(people.map(p => p.name))].sort();
+    uniquePeopleCount.textContent = `(${uniqueNames.length})`;
+
+    if (uniqueNames.length === 0) {
+        participantsList.innerHTML = '<div style="color: #888; font-style: italic;">No participants yet</div>';
+        return;
+    }
+
+    participantsList.innerHTML = uniqueNames.map((name, index) => `
+        <div style="padding: 8px 0; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+            <span style="color: #888; font-size: 0.9em; width: 25px;">#${index + 1}</span>
+            <span style="font-weight: 500;">${name}</span>
         </div>
     `).join('');
 }
