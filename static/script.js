@@ -242,9 +242,9 @@ function renderParticipants(people) {
     }
 
     participantsList.innerHTML = uniqueNames.map((name, index) => `
-        <div style="padding: 8px 0; border-bottom: 1px solid #eee; display: flex; align-items: center;">
-            <span style="color: #888; font-size: 0.9em; width: 25px;">#${index + 1}</span>
-            <span style="font-weight: 500;">${name}</span>
+        <div style="padding: 10px 0; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+            <span style="color: #888; font-size: 0.9em; min-width: 30px; margin-right: 12px; display: inline-block; text-align: right;">#${index + 1}</span>
+            <span style="font-weight: 600; font-size: 1.05em;">${name}</span>
         </div>
     `).join('');
 }
