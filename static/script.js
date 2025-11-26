@@ -90,6 +90,14 @@ function toggleSponsorAmount() {
     }
 }
 
+// Helper function to format money
+function formatMoney(amount) {
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount);
+}
+
 // Initialize
 init();
 
@@ -350,8 +358,8 @@ function renderPeople(people) {
         const total = people.reduce((sum, p) => sum + (p.amount_spent || 0), 0);
         const sponsor = people.reduce((sum, p) => sum + (p.is_sponsor ? (p.sponsor_amount || 0) : 0), 0);
         
-        if (expensesTotal) expensesTotal.textContent = total.toFixed(2);
-        if (expensesSponsor) expensesSponsor.textContent = sponsor.toFixed(2);
+        if (expensesTotal) expensesTotal.textContent = formatMoney(total);
+        if (expensesSponsor) expensesSponsor.textContent = formatMoney(sponsor);
     } else {
         if (expensesCount) expensesCount.textContent = '(0)';
         if (expensesTotal) expensesTotal.textContent = '0.00';
@@ -373,8 +381,8 @@ function renderPeople(people) {
                     ${person.is_receiver ? '<span class="person-badge receiver-badge">RECEIVER</span>' : ''}
                 </div>
                 ${person.description ? `<div class="person-description">${person.description}</div>` : ''}
-                <div class="person-amount">Spent: $${person.amount_spent.toFixed(2)}</div>
-                ${person.is_sponsor && person.sponsor_amount > 0 ? `<div class="person-amount">Sponsoring: $${person.sponsor_amount.toFixed(2)}</div>` : ''}
+                <div class="person-amount">Spent: $${formatMoney(person.amount_spent)}</div>
+                ${person.is_sponsor && person.sponsor_amount > 0 ? `<div class="person-amount">Sponsoring: $${formatMoney(person.sponsor_amount)}</div>` : ''}
                 <div class="receiver-option">
                     <label style="font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 5px; margin-top: 5px;">
                         <input type="radio" name="receiver_group" 
@@ -486,11 +494,11 @@ async function calculateSplit() {
 
 // Display calculation results
 function displayResults(result) {
-    document.getElementById('totalSpent').textContent = result.total_spent.toFixed(2);
-    document.getElementById('totalSponsored').textContent = result.total_sponsored.toFixed(2);
-    document.getElementById('amountToShare').textContent = result.amount_to_share.toFixed(2);
+    document.getElementById('totalSpent').textContent = formatMoney(result.total_spent);
+    document.getElementById('totalSponsored').textContent = formatMoney(result.total_sponsored);
+    document.getElementById('amountToShare').textContent = formatMoney(result.amount_to_share);
     document.getElementById('numParticipants').textContent = result.num_participants;
-    document.getElementById('perPersonShare').textContent = result.per_person_share.toFixed(2);
+    document.getElementById('perPersonShare').textContent = formatMoney(result.per_person_share);
     
     const settlementsList = document.getElementById('settlementsList');
     
@@ -504,20 +512,20 @@ function displayResults(result) {
             const payTo = receiver && !settlement.is_receiver ? ` to <strong>${receiver.name}</strong>` : '';
             message = `
                 <div class="settlement-header">
-                    <strong>${settlement.name}</strong> should pay <span class="settlement-amount">$${Math.abs(settlement.balance).toFixed(2)}</span>${payTo}
+                    <strong>${settlement.name}</strong> should pay <span class="settlement-amount">$${formatMoney(Math.abs(settlement.balance))}</span>${payTo}
                 </div>
                 <div class="settlement-details">
-                    (Spent: $${settlement.amount_spent.toFixed(2)} - Sponsor: $${settlement.sponsor_cost.toFixed(2)} - Share: $${settlement.share_cost.toFixed(2)})
+                    (Spent: $${formatMoney(settlement.amount_spent)} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
                 </div>`;
             cssClass = 'pay';
         } else if (settlement.settlement_type === 'receive') {
             const receiveFrom = receiver && !settlement.is_receiver ? ` from <strong>${receiver.name}</strong>` : '';
             message = `
                 <div class="settlement-header">
-                    <strong>${settlement.name}</strong> should receive <span class="settlement-amount">$${settlement.balance.toFixed(2)}</span>${receiveFrom}
+                    <strong>${settlement.name}</strong> should receive <span class="settlement-amount">$${formatMoney(settlement.balance)}</span>${receiveFrom}
                 </div>
                 <div class="settlement-details">
-                    (Spent: $${settlement.amount_spent.toFixed(2)} - Sponsor: $${settlement.sponsor_cost.toFixed(2)} - Share: $${settlement.share_cost.toFixed(2)})
+                    (Spent: $${formatMoney(settlement.amount_spent)} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
                 </div>`;
             cssClass = 'receive';
         } else {
@@ -526,7 +534,7 @@ function displayResults(result) {
                     <strong>${settlement.name}</strong> is all settled up! <span class="settlement-amount">$0.00</span>
                 </div>
                 <div class="settlement-details">
-                    (Spent: $${settlement.amount_spent.toFixed(2)} - Sponsor: $${settlement.sponsor_cost.toFixed(2)} - Share: $${settlement.share_cost.toFixed(2)})
+                    (Spent: $${formatMoney(settlement.amount_spent)} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
                 </div>`;
             cssClass = 'settled';
         }
@@ -587,7 +595,7 @@ function renderHistory() {
         el.style.marginBottom = '10px';
         
         const date = new Date(item.timestamp).toLocaleDateString();
-        const total = item.people.reduce((sum, p) => sum + p.amount_spent, 0).toFixed(2);
+        const total = item.people.reduce((sum, p) => sum + p.amount_spent, 0);
         
         const uniqueNames = [...new Set(item.people.map(p => p.name))].sort();
         const count = uniqueNames.length;
@@ -596,7 +604,7 @@ function renderHistory() {
         el.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span style="font-weight: bold; font-size: 0.9em;">${date}</span>
-                <span style="font-size: 0.8em; color: #666;">$${total}</span>
+                <span style="font-size: 0.8em; color: #666;">$${formatMoney(total)}</span>
             </div>
             <div style="font-size: 0.8em; color: #666; margin-bottom: 8px;">
                 <strong>${count} Participants:</strong> <span style="font-style: italic;">${namesList}</span>
