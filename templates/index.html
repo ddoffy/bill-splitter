@@ -85,9 +85,14 @@
         </div>
 
                 <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <h2 style="margin-bottom: 0;">Expenses <span id="expensesCount" style="font-size: 0.8em; color: #666; font-weight: normal;">(0)</span></h2>
                         <button id="clearAllBtn" class="btn btn-danger" style="width: auto; padding: 8px 16px;">Clear All</button>
+                    </div>
+                    <div style="background: #f7fafc; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; color: #4a5568; display: flex; gap: 15px; flex-wrap: wrap;">
+                        <span><strong>Total Spent:</strong> $<span id="expensesTotal">0.00</span></span>
+                        <span style="color: #cbd5e0;">|</span>
+                        <span><strong>Total Sponsor:</strong> $<span id="expensesSponsor">0.00</span></span>
                     </div>
                     <div id="peopleList" class="people-list"></div>
                 </div>

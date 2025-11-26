@@ -341,8 +341,21 @@ function renderPeople(people) {
     renderParticipants(people);
 
     const expensesCount = document.getElementById('expensesCount');
-    if (expensesCount) {
-        expensesCount.textContent = `(${people ? people.length : 0})`;
+    const expensesTotal = document.getElementById('expensesTotal');
+    const expensesSponsor = document.getElementById('expensesSponsor');
+
+    if (people) {
+        if (expensesCount) expensesCount.textContent = `(${people.length})`;
+        
+        const total = people.reduce((sum, p) => sum + (p.amount_spent || 0), 0);
+        const sponsor = people.reduce((sum, p) => sum + (p.is_sponsor ? (p.sponsor_amount || 0) : 0), 0);
+        
+        if (expensesTotal) expensesTotal.textContent = total.toFixed(2);
+        if (expensesSponsor) expensesSponsor.textContent = sponsor.toFixed(2);
+    } else {
+        if (expensesCount) expensesCount.textContent = '(0)';
+        if (expensesTotal) expensesTotal.textContent = '0.00';
+        if (expensesSponsor) expensesSponsor.textContent = '0.00';
     }
 
     if (!people || people.length === 0) {
