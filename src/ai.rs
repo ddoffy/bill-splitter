@@ -1,3 +1,5 @@
+use core::panic;
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -37,11 +39,10 @@ pub struct OpenAiProvider {
 impl OpenAiProvider {
     pub fn new(api_key: String) -> Self {
         let model = std::env::var("OPENAI_API_MODEL").unwrap_or_default();
-        let model = if model.is_empty() {
-            "gpt-4.1-mini".to_string()
-        } else {
-            model
-        };
+
+        if model.is_empty() {
+            panic!("OPENAI_API_MODEL environment variable is not set");
+        }
 
         Self {
             client: Client::new(),
