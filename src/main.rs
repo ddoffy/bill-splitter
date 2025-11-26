@@ -23,6 +23,8 @@ struct Person {
     name: String,
     description: String,
     amount_spent: f64,
+    #[serde(default)]
+    tip: f64,
     is_sponsor: bool,
     sponsor_amount: f64,
     #[serde(default)]
@@ -318,6 +320,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     struct PersonSummary {
         name: String,
         amount_spent: f64,
+        tip: f64,
         sponsor_amount: f64,
         is_sponsor: bool,
         is_receiver: bool,
@@ -329,12 +332,14 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         let entry = grouped_people.entry(person.name.clone()).or_insert(PersonSummary {
             name: person.name.clone(),
             amount_spent: 0.0,
+            tip: 0.0,
             sponsor_amount: 0.0,
             is_sponsor: false,
             is_receiver: false,
         });
 
         entry.amount_spent += person.amount_spent;
+        entry.tip += person.tip;
         entry.sponsor_amount += person.sponsor_amount;
         if person.is_sponsor {
             entry.is_sponsor = true;
@@ -351,7 +356,11 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
 
     // Calculate totals with tip included (as if it's a tax)
     let total_spent_base: f64 = unique_people.iter().map(|p| p.amount_spent).sum();
-    let total_spent_with_tip = total_spent_base * tip_multiplier;
+    let total_explicit_tip: f64 = unique_people.iter().map(|p| p.tip).sum();
+    
+    // Total spent with tip = (Base * Global Tax) + Explicit Tips
+    // Note: We assume explicit tips are NOT taxed by the global percentage
+    let total_spent_with_tip = (total_spent_base * tip_multiplier) + total_explicit_tip;
     
     // Sponsorship is a fixed amount, not affected by tip/tax
     let total_sponsored: f64 = unique_people.iter().map(|p| p.sponsor_amount).sum();
@@ -388,12 +397,15 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     let mut settlements: Vec<Settlement> = unique_people
         .iter()
         .map(|person| {
-            // Calculate tip paid by this person (assumed proportional to spend)
-            let tip_paid = if tip_percentage > 0.0 {
+            // Calculate tip paid by this person
+            // = Explicit Tip + (Amount Spent * Global Tax Rate)
+            let global_tip_part = if tip_percentage > 0.0 {
                 person.amount_spent * (tip_percentage / 100.0)
             } else {
                 0.0
             };
+            
+            let tip_paid = person.tip + global_tip_part;
 
             // Calculate how much this person should pay (cost)
             let sponsor_cost = if person.is_sponsor {
@@ -446,10 +458,10 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     settlements.sort_by(|a, b| a.name.cmp(&b.name));
 
     Json(CalculateResponse {
-        total_spent: total_spent_base,
+        total_spent: total_spent_base + total_explicit_tip,
         total_sponsored: effective_total_sponsored,
         fund_amount,
-        total_tip: total_spent_with_tip - total_spent_base,
+        total_tip: total_spent_with_tip - (total_spent_base + total_explicit_tip),
         amount_to_share,
         num_participants,
         per_person_share,

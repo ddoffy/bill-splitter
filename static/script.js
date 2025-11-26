@@ -11,6 +11,9 @@ const addPersonForm = document.getElementById('addPersonForm');
 const personNameInput = document.getElementById('personName');
 const descriptionInput = document.getElementById('description');
 const amountSpentInput = document.getElementById('amountSpent');
+const expenseTipPercentageInput = document.getElementById('expenseTipPercentage');
+const hasExpenseTipCheckbox = document.getElementById('hasExpenseTip');
+const expenseTipGroup = document.getElementById('expenseTipGroup');
 const isSponsorCheckbox = document.getElementById('isSponsor');
 const sponsorAmountGroup = document.getElementById('sponsorAmountGroup');
 const sponsorAmountInput = document.getElementById('sponsorAmount');
@@ -41,6 +44,8 @@ calculateBtn.addEventListener('click', calculateSplit);
 clearAllBtn.addEventListener('click', clearAllPeople);
 isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
 amountSpentInput.addEventListener('input', function() { formatInputMoney(this); });
+// expenseTipPercentageInput.addEventListener('input', function() { }); // No special formatting for now
+hasExpenseTipCheckbox.addEventListener('change', toggleExpenseTip);
 sponsorAmountInput.addEventListener('input', function() { formatInputMoney(this); });
 if (fundAmountInput) fundAmountInput.addEventListener('input', function() { formatInputMoney(this); savePeople(); });
 if (addTipCheckbox) addTipCheckbox.addEventListener('change', function() { toggleTipAmount(); savePeople(); });
@@ -102,6 +107,20 @@ function toggleSponsorAmount() {
 function toggleTipAmount() {
     if (addTipCheckbox && tipAmountGroup) {
         tipAmountGroup.style.display = addTipCheckbox.checked ? 'block' : 'none';
+    }
+}
+
+function toggleExpenseTip() {
+    if (hasExpenseTipCheckbox && expenseTipGroup) {
+        expenseTipGroup.style.display = hasExpenseTipCheckbox.checked ? 'block' : 'none';
+        
+        if (hasExpenseTipCheckbox.checked) {
+            if (!expenseTipPercentageInput.value) {
+                expenseTipPercentageInput.value = '10';
+            }
+        } else {
+            expenseTipPercentageInput.value = '';
+        }
     }
 }
 
@@ -336,6 +355,11 @@ function handleAddPerson(e) {
     const name = personNameInput.value.trim();
     const description = descriptionInput.value.trim();
     const amount = parseFloat(amountSpentInput.value.replace(/,/g, ''));
+    let tip = 0;
+    if (hasExpenseTipCheckbox && hasExpenseTipCheckbox.checked && expenseTipPercentageInput) {
+        const percentage = parseFloat(expenseTipPercentageInput.value) || 0;
+        tip = amount * (percentage / 100);
+    }
     const isSponsor = isSponsorCheckbox.checked;
     const sponsorAmount = isSponsor ? parseFloat(sponsorAmountInput.value.replace(/,/g, '')) : 0;
     
@@ -349,6 +373,7 @@ function handleAddPerson(e) {
                         name,
                         description,
                         amount_spent: amount,
+                        tip: tip,
                         is_sponsor: isSponsor,
                         sponsor_amount: sponsorAmount
                     };
@@ -365,6 +390,7 @@ function handleAddPerson(e) {
                 name,
                 description,
                 amount_spent: amount,
+                tip: tip,
                 is_sponsor: isSponsor,
                 sponsor_amount: sponsorAmount,
                 is_receiver: false
@@ -376,6 +402,11 @@ function handleAddPerson(e) {
             personNameInput.value = '';
             descriptionInput.value = '';
             amountSpentInput.value = '0';
+            if (expenseTipPercentageInput) expenseTipPercentageInput.value = '';
+            if (hasExpenseTipCheckbox) {
+                hasExpenseTipCheckbox.checked = false;
+                toggleExpenseTip();
+            }
             isSponsorCheckbox.checked = false;
             sponsorAmountInput.value = '0';
             toggleSponsorAmount();
@@ -404,6 +435,17 @@ function editPerson(id) {
     personNameInput.value = person.name;
     descriptionInput.value = person.description || '';
     amountSpentInput.value = formatMoney(person.amount_spent);
+    
+    if (hasExpenseTipCheckbox) {
+        hasExpenseTipCheckbox.checked = !!person.tip && person.tip > 0;
+        toggleExpenseTip();
+        
+        if (hasExpenseTipCheckbox.checked && expenseTipPercentageInput) {
+             const percentage = person.amount_spent > 0 ? (person.tip / person.amount_spent) * 100 : 0;
+             expenseTipPercentageInput.value = parseFloat(percentage.toFixed(2));
+        }
+    }
+
     isSponsorCheckbox.checked = person.is_sponsor;
     sponsorAmountInput.value = formatMoney(person.sponsor_amount);
     
@@ -428,6 +470,11 @@ function cancelEdit() {
     personNameInput.value = '';
     descriptionInput.value = '';
     amountSpentInput.value = '0';
+    if (expenseTipPercentageInput) expenseTipPercentageInput.value = '';
+    if (hasExpenseTipCheckbox) {
+        hasExpenseTipCheckbox.checked = false;
+        toggleExpenseTip();
+    }
     isSponsorCheckbox.checked = false;
     sponsorAmountInput.value = '0';
     toggleSponsorAmount();
@@ -469,7 +516,7 @@ function renderPeople(people) {
     if (people) {
         if (expensesCount) expensesCount.textContent = `(${people.length})`;
         
-        const total = people.reduce((sum, p) => sum + (p.amount_spent || 0), 0);
+        const total = people.reduce((sum, p) => sum + (p.amount_spent || 0) + (p.tip || 0), 0);
         const sponsor = people.reduce((sum, p) => sum + (p.is_sponsor ? (p.sponsor_amount || 0) : 0), 0);
         
         if (expensesTotal) expensesTotal.textContent = formatMoney(total);
@@ -495,7 +542,19 @@ function renderPeople(people) {
                     ${person.is_receiver ? '<span class="person-badge receiver-badge">RECEIVER</span>' : ''}
                 </div>
                 ${person.description ? `<div class="person-description">${person.description}</div>` : ''}
-                <div class="person-amount">Spent: $${formatMoney(person.amount_spent)}</div>
+                <div class="person-amount">
+                    Spent: $${formatMoney(person.amount_spent)}
+                    ${person.tip > 0 ? `
+                        <br>
+                        <span style="font-size: 0.9em; color: #666;">
+                            Tip/Tax: $${formatMoney(person.tip)} (${parseFloat(((person.tip / person.amount_spent) * 100).toFixed(1))}%)
+                        </span>
+                        <br>
+                        <span style="font-weight: bold;">
+                            Final: $${formatMoney(person.amount_spent + person.tip)}
+                        </span>
+                    ` : ''}
+                </div>
                 ${person.is_sponsor && person.sponsor_amount > 0 ? `<div class="person-amount">Sponsoring: $${formatMoney(person.sponsor_amount)}</div>` : ''}
                 <div class="receiver-option">
                     <label style="font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 5px; margin-top: 5px;">
