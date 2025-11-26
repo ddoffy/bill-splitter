@@ -36,6 +36,8 @@ addPersonForm.addEventListener('submit', handleAddPerson);
 calculateBtn.addEventListener('click', calculateSplit);
 clearAllBtn.addEventListener('click', clearAllPeople);
 isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
+amountSpentInput.addEventListener('input', function() { formatInputMoney(this); });
+sponsorAmountInput.addEventListener('input', function() { formatInputMoney(this); });
 cancelEditBtn.addEventListener('click', cancelEdit);
 if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
@@ -96,6 +98,54 @@ function formatMoney(amount) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(amount);
+}
+
+function formatInputMoney(input) {
+    const cursorPosition = input.selectionStart;
+    const originalLength = input.value.length;
+    const originalValue = input.value;
+
+    let value = input.value;
+    
+    // Remove all non-numeric characters except decimal point
+    let cleanValue = value.replace(/[^\d.]/g, '');
+    
+    // Ensure only one decimal point
+    let parts = cleanValue.split('.');
+    if (parts.length > 2) {
+        cleanValue = parts[0] + '.' + parts.slice(1).join('');
+        parts = cleanValue.split('.');
+    }
+    
+    if (cleanValue === '') {
+        input.value = '';
+        return;
+    }
+
+    // Split into integer and decimal parts
+    let integerPart = parts[0];
+    const decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+    
+    // Remove leading zeros
+    if (integerPart.length > 1 && integerPart.startsWith('0')) {
+        integerPart = integerPart.replace(/^0+/, '');
+        if (integerPart === '') integerPart = '0';
+    }
+    
+    // Format integer part with commas
+    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    
+    const newValue = formattedInteger + decimalPart;
+    
+    if (newValue !== originalValue) {
+        input.value = newValue;
+        
+        // Restore cursor position
+        const newLength = newValue.length;
+        let newCursorPosition = cursorPosition + (newLength - originalLength);
+        if (newCursorPosition < 0) newCursorPosition = 0;
+        input.setSelectionRange(newCursorPosition, newCursorPosition);
+    }
 }
 
 // Initialize
@@ -223,9 +273,9 @@ function handleAddPerson(e) {
     
     const name = personNameInput.value.trim();
     const description = descriptionInput.value.trim();
-    const amount = parseFloat(amountSpentInput.value);
+    const amount = parseFloat(amountSpentInput.value.replace(/,/g, ''));
     const isSponsor = isSponsorCheckbox.checked;
-    const sponsorAmount = isSponsor ? parseFloat(sponsorAmountInput.value) : 0;
+    const sponsorAmount = isSponsor ? parseFloat(sponsorAmountInput.value.replace(/,/g, '')) : 0;
     
     if (name && amount >= 0) {
         if (editingPersonId) {
@@ -276,6 +326,8 @@ function handleAddPerson(e) {
         
         // Hide results when modifying list
         resultsSection.style.display = 'none';
+    } else if (name) {
+        alert('Please enter a valid amount.');
     }
 }
 
@@ -289,9 +341,9 @@ function editPerson(id) {
     // Populate form
     personNameInput.value = person.name;
     descriptionInput.value = person.description || '';
-    amountSpentInput.value = person.amount_spent;
+    amountSpentInput.value = formatMoney(person.amount_spent);
     isSponsorCheckbox.checked = person.is_sponsor;
-    sponsorAmountInput.value = person.sponsor_amount;
+    sponsorAmountInput.value = formatMoney(person.sponsor_amount);
     
     toggleSponsorAmount();
     
@@ -692,3 +744,5 @@ function deleteHistoryItem(index) {
 // Expose functions to global scope for inline onclick handlers
 window.useTemplate = useTemplate;
 window.deleteHistoryItem = deleteHistoryItem;
+
+
