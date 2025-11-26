@@ -148,7 +148,10 @@
             </div>
 
             <div id="resultsSection" class="card results-section" style="display: none;">
-                <h2>Results</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin-bottom: 0;">Results</h2>
+                    <button id="exportBtn" class="btn" style="background: #276749; color: white; padding: 6px 12px; font-size: 0.9em; width: auto;">Export CSV</button>
+                </div>
                 <div class="summary">
                     <p><strong>Total Spent:</strong> $<span id="totalSpent">0.00</span></p>
                     <p id="tipRow" style="display: none;"><strong>Tip/Tax (<span id="tipPercentDisplay">0</span>%):</strong> $<span id="totalTip">0.00</span></p>

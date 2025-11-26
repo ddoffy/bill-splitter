@@ -5,6 +5,7 @@ let editingPersonId = null;
 let currentSessionId = null;
 let currentEditSecret = null;
 let isReadOnly = false;
+let lastCalculationResult = null;
 
 // DOM elements
 const addPersonForm = document.getElementById('addPersonForm');
@@ -37,6 +38,7 @@ const fundAmountInput = document.getElementById('fundAmount');
 const addTipCheckbox = document.getElementById('addTip');
 const tipAmountGroup = document.getElementById('tipAmountGroup');
 const tipPercentageInput = document.getElementById('tipPercentage');
+const exportBtn = document.getElementById('exportBtn');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -55,6 +57,7 @@ if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
 if (copyEditLinkBtn) copyEditLinkBtn.addEventListener('click', () => copyToClipboard(editLinkInput, copyEditLinkBtn));
 if (archiveBtn) archiveBtn.addEventListener('click', archiveSession);
+if (exportBtn) exportBtn.addEventListener('click', exportToCSV);
 if (participantSelect) {
     participantSelect.addEventListener('change', function() {
         if (this.value) {
@@ -658,6 +661,7 @@ async function calculateSplit() {
         }
         
         const result = await calcResponse.json();
+        lastCalculationResult = result; // Save the last calculation result
         
         if (result.num_participants === 0 && result.amount_to_share > 0) {
             alert('No participants to split the bill! Either add non-sponsor people or include sponsors in the split.');
@@ -931,5 +935,66 @@ function deleteHistoryItem(index) {
 // Expose functions to global scope for inline onclick handlers
 window.useTemplate = useTemplate;
 window.deleteHistoryItem = deleteHistoryItem;
+
+// Export Results to CSV
+function exportToCSV() {
+    if (!lastCalculationResult) {
+        alert('Please calculate the split first to export results!');
+        return;
+    }
+
+    const result = lastCalculationResult;
+    let csvContent = "data:text/csv;charset=utf-8,";
+
+    // Summary Section
+    csvContent += "Summary\n";
+    csvContent += `Total Spent,${result.total_spent.toFixed(2)}\n`;
+    csvContent += `Total Sponsored,${result.total_sponsored.toFixed(2)}\n`;
+    if (result.total_tip > 0) {
+        csvContent += `Total Tip/Tax,${result.total_tip.toFixed(2)}\n`;
+    }
+    if (result.fund_amount > 0) {
+        csvContent += `Fund Used,${result.fund_amount.toFixed(2)}\n`;
+    }
+    csvContent += `Amount to Share,${result.amount_to_share.toFixed(2)}\n`;
+    csvContent += `Number of Participants,${result.num_participants}\n`;
+    csvContent += `Per Person Share,${result.per_person_share.toFixed(2)}\n\n`;
+
+    // Settlements Section
+    csvContent += "Settlements\n";
+    csvContent += "Name,Spent,Tip/Tax Paid,Sponsor Cost,Share Cost,Balance,Action\n";
+
+    result.settlements.forEach(item => {
+        let action = "";
+        if (item.balance < -0.01) {
+            action = `Pay ${Math.abs(item.balance).toFixed(2)}`;
+        } else if (item.balance > 0.01) {
+            action = `Receive ${item.balance.toFixed(2)}`;
+        } else {
+            action = "Settled";
+        }
+
+        const row = [
+            `"${item.name}"`,
+            item.amount_spent.toFixed(2),
+            item.tip_paid.toFixed(2),
+            item.sponsor_cost.toFixed(2),
+            item.share_cost.toFixed(2),
+            item.balance.toFixed(2),
+            action
+        ].join(",");
+        csvContent += row + "\n";
+    });
+
+    // Create download link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const date = new Date().toISOString().slice(0, 10);
+    link.setAttribute("download", `bill_split_results_${date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 
