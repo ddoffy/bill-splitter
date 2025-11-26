@@ -47,7 +47,7 @@ impl OpenAiProvider {
         Self {
             client: Client::new(),
             api_key,
-            model: model,
+            model,
         }
     }
 
