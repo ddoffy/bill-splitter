@@ -39,6 +39,7 @@ const addTipCheckbox = document.getElementById('addTip');
 const tipAmountGroup = document.getElementById('tipAmountGroup');
 const tipPercentageInput = document.getElementById('tipPercentage');
 const exportBtn = document.getElementById('exportBtn');
+const exportExcelBtn = document.getElementById('exportExcelBtn');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -58,6 +59,7 @@ if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipb
 if (copyEditLinkBtn) copyEditLinkBtn.addEventListener('click', () => copyToClipboard(editLinkInput, copyEditLinkBtn));
 if (archiveBtn) archiveBtn.addEventListener('click', archiveSession);
 if (exportBtn) exportBtn.addEventListener('click', exportToCSV);
+if (exportExcelBtn) exportExcelBtn.addEventListener('click', exportToExcel);
 if (participantSelect) {
     participantSelect.addEventListener('change', function() {
         if (this.value) {
@@ -992,6 +994,110 @@ function exportToCSV() {
     link.setAttribute("href", encodedUri);
     const date = new Date().toISOString().slice(0, 10);
     link.setAttribute("download", `bill_split_results_${date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Export Results to Excel (HTML Table method)
+function exportToExcel() {
+    if (!lastCalculationResult) {
+        alert('Please calculate the split first to export results!');
+        return;
+    }
+
+    const result = lastCalculationResult;
+    
+    // Create HTML content for Excel
+    let html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+        <!--[if gte mso 9]>
+        <xml>
+            <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                    <x:ExcelWorksheet>
+                        <x:Name>Bill Split Results</x:Name>
+                        <x:WorksheetOptions>
+                            <x:DisplayGridlines/>
+                        </x:WorksheetOptions>
+                    </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+    </head>
+    <body>
+        <h2>Bill Split Results</h2>
+        
+        <h3>Summary</h3>
+        <table border="1">
+            <tr><td>Total Spent</td><td>${result.total_spent.toFixed(2)}</td></tr>
+            <tr><td>Total Sponsored</td><td>${result.total_sponsored.toFixed(2)}</td></tr>
+            ${result.total_tip > 0 ? `<tr><td>Total Tip/Tax</td><td>${result.total_tip.toFixed(2)}</td></tr>` : ''}
+            ${result.fund_amount > 0 ? `<tr><td>Fund Used</td><td>${result.fund_amount.toFixed(2)}</td></tr>` : ''}
+            <tr><td>Amount to Share</td><td>${result.amount_to_share.toFixed(2)}</td></tr>
+            <tr><td>Number of Participants</td><td>${result.num_participants}</td></tr>
+            <tr><td>Per Person Share</td><td>${result.per_person_share.toFixed(2)}</td></tr>
+        </table>
+        
+        <h3>Settlements</h3>
+        <table border="1">
+            <thead>
+                <tr style="background-color: #f0f0f0; font-weight: bold;">
+                    <th>Name</th>
+                    <th>Spent</th>
+                    <th>Tip/Tax Paid</th>
+                    <th>Sponsor Cost</th>
+                    <th>Share Cost</th>
+                    <th>Balance</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    result.settlements.forEach(item => {
+        let action = "";
+        let color = "";
+        if (item.balance < -0.01) {
+            action = `Pay ${Math.abs(item.balance).toFixed(2)}`;
+            color = "#fed7d7"; // Light red
+        } else if (item.balance > 0.01) {
+            action = `Receive ${item.balance.toFixed(2)}`;
+            color = "#c6f6d5"; // Light green
+        } else {
+            action = "Settled";
+            color = "#ffffff";
+        }
+
+        html += `
+            <tr>
+                <td>${item.name}</td>
+                <td>${item.amount_spent.toFixed(2)}</td>
+                <td>${item.tip_paid.toFixed(2)}</td>
+                <td>${item.sponsor_cost.toFixed(2)}</td>
+                <td>${item.share_cost.toFixed(2)}</td>
+                <td style="background-color: ${color}">${item.balance.toFixed(2)}</td>
+                <td style="background-color: ${color}">${action}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    </body>
+    </html>
+    `;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const date = new Date().toISOString().slice(0, 10);
+    link.setAttribute("download", `bill_split_results_${date}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
