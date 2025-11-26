@@ -16,7 +16,6 @@ const sponsorAmountGroup = document.getElementById('sponsorAmountGroup');
 const sponsorAmountInput = document.getElementById('sponsorAmount');
 const peopleList = document.getElementById('peopleList');
 const includeSponsorCheckbox = document.getElementById('includeSponsorInSplit');
-const restrictSponsorCheckbox = document.getElementById('restrictSponsorToSpent');
 const calculateBtn = document.getElementById('calculateBtn');
 const clearAllBtn = document.getElementById('clearAllBtn');
 const resultsSection = document.getElementById('resultsSection');
@@ -426,7 +425,6 @@ async function calculateSplit() {
         }
         
         const includeSponsor = includeSponsorCheckbox.checked;
-        const restrictSponsor = restrictSponsorCheckbox.checked;
         
         const calcResponse = await fetch('/api/calculate', {
             method: 'POST',
@@ -435,8 +433,7 @@ async function calculateSplit() {
             },
             body: JSON.stringify({
                 people,
-                include_sponsor: includeSponsor,
-                restrict_sponsor_to_spent: restrictSponsor
+                include_sponsor: includeSponsor
             })
         });
         

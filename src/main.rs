@@ -312,13 +312,14 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     let total_sponsored_raw: f64 = unique_people.iter().map(|p| p.sponsor_amount).sum();
     
     // Handle sponsorship logic based on restriction setting
-    let (effective_total_sponsored, sponsorship_ratio) = if restrict_sponsor && total_sponsored_raw > total_spent {
+    // Always restrict sponsorship to total spent to ensure no one profits (negative share)
+    let (effective_total_sponsored, sponsorship_ratio) = if total_sponsored_raw > total_spent {
         // Restrict enabled: Cap sponsorship at total spent
         // Scale down sponsor contributions
         let ratio = if total_sponsored_raw > 0.0 { total_spent / total_sponsored_raw } else { 0.0 };
         (total_spent, ratio)
     } else {
-        // Restrict disabled OR sponsorship <= spent: Use actual sponsorship amount
+        // Sponsorship <= spent: Use actual sponsorship amount
         (total_sponsored_raw, 1.0)
     };
     
