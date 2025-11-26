@@ -55,55 +55,94 @@
             <div class="main-content" style="flex: 1; min-width: 300px;">
                 <div class="card">
                     <h2>Add Expense</h2>
-                    <form id="addPersonForm">
-                <div class="form-group">
-                    <label for="personName">Name:</label>
-                    <input type="text" id="personName" required placeholder="Who paid?" autocomplete="off">
-                    <select id="participantSelect" style="display: none; width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; background-color: white; cursor: pointer;">
-                        <option value="">-- Select existing participant --</option>
-                    </select>
-                </div>
+                    
+                    <!-- Tabs -->
+                    <div class="tabs" style="display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 20px;">
+                        <button class="tab-btn active" onclick="switchTab('manual')" id="tab-btn-manual" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid #4299e1; font-weight: bold; cursor: pointer; color: #2d3748;">Manual</button>
+                        <button class="tab-btn" onclick="switchTab('image')" id="tab-btn-image" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid transparent; cursor: pointer; color: #718096;">Scan Image</button>
+                        <button class="tab-btn" onclick="switchTab('text')" id="tab-btn-text" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid transparent; cursor: pointer; color: #718096;">Paste Text</button>
+                    </div>
 
-                <div class="form-group">
-                    <label for="description">Description (Optional):</label>
-                    <input type="text" id="description" placeholder="e.g. Drinks, Taxi">
-                </div>
-                
-                <div class="form-group">
-                    <label for="amountSpent">Amount Spent:</label>
-                    <input type="text" id="amountSpent" inputmode="decimal" placeholder="0.00" required>
-                </div>
+                    <!-- Manual Tab (Existing Form) -->
+                    <div id="tab-manual" class="tab-content">
+                        <form id="addPersonForm">
+                            <div class="form-group">
+                                <label for="personName">Name:</label>
+                                <input type="text" id="personName" required placeholder="Who paid?" autocomplete="off">
+                                <select id="participantSelect" style="display: none; width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; background-color: white; cursor: pointer;">
+                                    <option value="">-- Select existing participant --</option>
+                                </select>
+                            </div>
 
-                <div class="form-group checkbox-group">
-                    <label>
-                        <input type="checkbox" id="hasExpenseTip">
-                        Tip/Tax on spent
-                    </label>
-                </div>
+                            <div class="form-group">
+                                <label for="description">Description (Optional):</label>
+                                <input type="text" id="description" placeholder="e.g. Drinks, Taxi">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="amountSpent">Amount Spent:</label>
+                                <input type="text" id="amountSpent" inputmode="decimal" placeholder="0.00" required>
+                            </div>
 
-                <div class="form-group" id="expenseTipGroup" style="display: none;">
-                    <label for="expenseTipPercentage">Tip/Tax Percentage (%):</label>
-                    <input type="text" id="expenseTipPercentage" inputmode="decimal" placeholder="10">
-                </div>
-                
-                <div class="form-group checkbox-group">
-                    <label>
-                        <input type="checkbox" id="isSponsor">
-                        Is Sponsor
-                    </label>
-                </div>
+                            <div class="form-group checkbox-group">
+                                <label>
+                                    <input type="checkbox" id="hasExpenseTip">
+                                    Tip/Tax on spent
+                                </label>
+                            </div>
 
-                <div class="form-group" id="sponsorAmountGroup" style="display: none;">
-                    <label for="sponsorAmount">Sponsor Amount:</label>
-                    <input type="text" id="sponsorAmount" inputmode="decimal" placeholder="0.00">
+                            <div class="form-group" id="expenseTipGroup" style="display: none;">
+                                <label for="expenseTipPercentage">Tip/Tax Percentage (%):</label>
+                                <input type="text" id="expenseTipPercentage" inputmode="decimal" placeholder="10">
+                            </div>
+                            
+                            <div class="form-group checkbox-group">
+                                <label>
+                                    <input type="checkbox" id="isSponsor">
+                                    Is Sponsor
+                                </label>
+                            </div>
+
+                            <div class="form-group" id="sponsorAmountGroup" style="display: none;">
+                                <label for="sponsorAmount">Sponsor Amount:</label>
+                                <input type="text" id="sponsorAmount" inputmode="decimal" placeholder="0.00">
+                            </div>
+                            
+                            <div style="display: flex; gap: 10px;">
+                                <button type="submit" class="btn btn-primary" id="submitBtn">Add Person</button>
+                                <button type="button" class="btn" id="cancelEditBtn" style="display: none; background: #718096; color: white;">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Image Tab -->
+                    <div id="tab-image" class="tab-content" style="display: none;">
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 10px;">Upload Receipt Image</label>
+                            <div style="border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; background: #f7fafc;">
+                                <input type="file" id="receiptImage" accept="image/*" style="display: none;" onchange="handleImageSelect(this)">
+                                <button onclick="document.getElementById('receiptImage').click()" class="btn" style="background: #4a5568; color: white; margin-bottom: 10px;">Choose Image</button>
+                                <div id="imageFileName" style="color: #718096; font-size: 0.9em;">No file selected</div>
+                            </div>
+                        </div>
+                        <button onclick="processImage()" class="btn btn-primary" id="processImageBtn" disabled style="width: 100%; opacity: 0.5;">Process Receipt</button>
+                        <div id="imageLoading" style="display: none; margin-top: 15px; text-align: center; color: #4299e1;">
+                            Processing image with AI... <span class="loading-dots">...</span>
+                        </div>
+                    </div>
+
+                    <!-- Text Tab -->
+                    <div id="tab-text" class="tab-content" style="display: none;">
+                        <div class="form-group">
+                            <label for="receiptText">Paste Receipt Text</label>
+                            <textarea id="receiptText" rows="8" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace; font-size: 0.9em;" placeholder="Paste the text content of the receipt here..."></textarea>
+                        </div>
+                        <button onclick="processText()" class="btn btn-primary" style="width: 100%;">Process Text</button>
+                        <div id="textLoading" style="display: none; margin-top: 15px; text-align: center; color: #4299e1;">
+                            Processing text with AI... <span class="loading-dots">...</span>
+                        </div>
+                    </div>
                 </div>
-                
-                <div style="display: flex; gap: 10px;">
-                    <button type="submit" class="btn btn-primary" id="submitBtn">Add Person</button>
-                    <button type="button" class="btn" id="cancelEditBtn" style="display: none; background: #718096; color: white;">Cancel</button>
-                </div>
-            </form>
-        </div>
 
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">

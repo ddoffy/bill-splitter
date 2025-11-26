@@ -1103,4 +1103,126 @@ function exportToExcel() {
     document.body.removeChild(link);
 }
 
+// Tab switching
+function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.borderBottom = '2px solid transparent';
+        btn.style.color = '#718096';
+    });
+
+    // Show selected tab
+    document.getElementById(`tab-${tabName}`).style.display = 'block';
+    const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+    activeBtn.classList.add('active');
+    activeBtn.style.borderBottom = '2px solid #4299e1';
+    activeBtn.style.color = '#2d3748';
+}
+
+// Handle image selection
+function handleImageSelect(input) {
+    const fileName = document.getElementById('imageFileName');
+    const processBtn = document.getElementById('processImageBtn');
+    
+    if (input.files && input.files[0]) {
+        fileName.textContent = input.files[0].name;
+        processBtn.disabled = false;
+        processBtn.style.opacity = '1';
+    } else {
+        fileName.textContent = 'No file selected';
+        processBtn.disabled = true;
+        processBtn.style.opacity = '0.5';
+    }
+}
+
+// Process AI Text
+async function processText() {
+    const text = document.getElementById('receiptText').value;
+    if (!text.trim()) {
+        alert('Please enter some text');
+        return;
+    }
+
+    const loading = document.getElementById('textLoading');
+    loading.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/ai/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) throw new Error('Failed to process text');
+
+        const data = await response.json();
+        populateFormFromAi(data);
+        switchTab('manual');
+    } catch (error) {
+        console.error(error);
+        alert('Error processing text: ' + error.message);
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+// Process AI Image
+async function processImage() {
+    const input = document.getElementById('receiptImage');
+    if (!input.files || !input.files[0]) {
+        alert('Please select an image');
+        return;
+    }
+
+    const loading = document.getElementById('imageLoading');
+    loading.style.display = 'block';
+
+    const formData = new FormData();
+    formData.append('image', input.files[0]);
+
+    try {
+        const response = await fetch('/api/ai/image', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Failed to process image');
+
+        const data = await response.json();
+        populateFormFromAi(data);
+        switchTab('manual');
+    } catch (error) {
+        console.error(error);
+        alert('Error processing image: ' + error.message);
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+// Populate form with AI data
+function populateFormFromAi(data) {
+    if (data.description) descriptionInput.value = data.description;
+    if (data.amount) amountSpentInput.value = formatMoney(data.amount);
+    
+    // Handle tip
+    if (data.tip && data.amount > 0) {
+        hasExpenseTipCheckbox.checked = true;
+        toggleExpenseTip();
+        
+        // Calculate percentage
+        const percentage = (data.tip / data.amount) * 100;
+        if (expenseTipPercentageInput) {
+            expenseTipPercentageInput.value = parseFloat(percentage.toFixed(2));
+        }
+    }
+    
+    // Focus on name input as it's likely missing
+    personNameInput.focus();
+    
+    // Show success message
+    alert('Data extracted! Please verify the details and enter the payer name.');
+}
+
 

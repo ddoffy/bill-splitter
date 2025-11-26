@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{State, Multipart},
     response::{Html, IntoResponse},
     routing::{get, post},
     Json, Router,
@@ -12,6 +12,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions, FromRow};
+
+mod ai;
+use ai::{AiProvider, OpenAiProvider};
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -168,6 +171,8 @@ async fn main() {
         .route("/api/calculate", post(calculate_split))
         .route("/api/sessions", post(create_session))
         .route("/api/sessions/:id", get(get_session).put(update_session))
+        .route("/api/ai/text", post(process_ai_text))
+        .route("/api/ai/image", post(process_ai_image))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);
 
@@ -471,4 +476,50 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         per_person_share,
         settlements,
     })
+}
+
+#[derive(Deserialize)]
+struct AiTextRequest {
+    text: String,
+}
+
+async fn process_ai_text(Json(request): Json<AiTextRequest>) -> impl IntoResponse {
+    let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
+    if api_key.is_empty() {
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not set").into_response();
+    }
+    let provider = OpenAiProvider::new(api_key);
+    match provider.process_text(&request.text).await {
+        Ok(mut data) => {
+            data.amount = data.items.iter().map(|item| item.amount).sum();
+            return Json(data).into_response();
+        },
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn process_ai_image(mut multipart: Multipart) -> impl IntoResponse {
+    let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
+    if api_key.is_empty() {
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not set").into_response();
+    }
+    
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or_default().to_string();
+        if name == "image" {
+            let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+            
+            match field.bytes().await {
+                Ok(data) => {
+                    let provider = OpenAiProvider::new(api_key);
+                    match provider.process_image(&data, &content_type).await {
+                        Ok(data) => return Json(data).into_response(),
+                        Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+                    }
+                }
+                Err(e) => return (axum::http::StatusCode::BAD_REQUEST, format!("Failed to read image data: {}", e)).into_response(),
+            }
+        }
+    }
+    (axum::http::StatusCode::BAD_REQUEST, "No image field found").into_response()
 }

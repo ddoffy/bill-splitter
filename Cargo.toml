@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.7"
+axum = { version = "0.7", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "trace"] }
@@ -17,8 +17,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.18.1", features = ["v4", "fast-rng"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
+reqwest = { version = "0.12.24", features = ["json", "multipart"] }
+base64 = "0.22.1"
+async-trait = "0.1"
 
-[build]
-incremental = true
-rustflags = ["-C", "codegen-units=12"]
-rustc-wrapper = "sscache"
