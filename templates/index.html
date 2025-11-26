@@ -40,6 +40,15 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="card">
+                    <h2>History</h2>
+                    <p style="font-size: 0.8em; color: #666; margin-bottom: 10px;">Local archives of your sessions.</p>
+                    <button id="archiveBtn" class="btn btn-secondary" style="width: 100%; margin-bottom: 15px; background-color: #718096;">Archive Current</button>
+                    <div id="historyList" class="history-list" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- History items will appear here -->
+                    </div>
+                </div>
             </div>
 
             <!-- Main Content -->
@@ -109,31 +118,34 @@
                     <div id="peopleList" class="people-list"></div>
                 </div>
 
-        <div class="card">
-            <h2>Settings</h2>
-            <div class="form-group">
-                <label for="fundAmount">Fund / Discount Amount:</label>
-                <input type="text" id="fundAmount" inputmode="decimal" placeholder="0.00">
-                <small style="color: #666; display: block; margin-top: 4px;">Amount available to cover expenses before splitting (e.g. team budget)</small>
-            </div>
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" id="includeSponsorInSplit" checked>
-                    Include sponsors in equal split
-                </label>
-            </div>
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" id="addTip">
-                    Add Tip/Tax
-                </label>
-            </div>
-            <div class="form-group" id="tipAmountGroup" style="display: none;">
-                <label for="tipPercentage">Tip/Tax Percentage (%):</label>
-                <input type="number" id="tipPercentage" value="10" min="0" step="0.1">
-            </div>
-            <button id="calculateBtn" class="btn btn-success">Calculate Split</button>
         </div>
+
+        <div class="sidebar-right" style="flex: 0 0 300px; min-width: 300px;">
+            <div class="card">
+                <h2>Settings</h2>
+                <div class="form-group">
+                    <label for="fundAmount">Fund / Discount Amount:</label>
+                    <input type="text" id="fundAmount" inputmode="decimal" placeholder="0.00">
+                    <small style="color: #666; display: block; margin-top: 4px;">Amount available to cover expenses before splitting (e.g. team budget)</small>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="includeSponsorInSplit" checked>
+                        Include sponsors in equal split
+                    </label>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="addTip">
+                        Add Tip/Tax
+                    </label>
+                </div>
+                <div class="form-group" id="tipAmountGroup" style="display: none;">
+                    <label for="tipPercentage">Tip/Tax Percentage (%):</label>
+                    <input type="number" id="tipPercentage" value="10" min="0" step="0.1">
+                </div>
+                <button id="calculateBtn" class="btn btn-success">Calculate Split</button>
+            </div>
 
             <div id="resultsSection" class="card results-section" style="display: none;">
                 <h2>Results</h2>
@@ -148,18 +160,6 @@
                 </div>
                 <h3>Settlements</h3>
                 <div id="settlementsList" class="settlements-list"></div>
-            </div>
-        </div>
-
-        <!-- Right Sidebar for History -->
-        <div class="sidebar-right" style="flex: 0 0 250px; min-width: 250px;">
-            <div class="card">
-                <h2>History</h2>
-                <p style="font-size: 0.8em; color: #666; margin-bottom: 10px;">Local archives of your sessions.</p>
-                <button id="archiveBtn" class="btn btn-secondary" style="width: 100%; margin-bottom: 15px; background-color: #718096;">Archive Current</button>
-                <div id="historyList" class="history-list" style="display: flex; flex-direction: column; gap: 10px;">
-                    <!-- History items will appear here -->
-                </div>
             </div>
         </div>
     </div>

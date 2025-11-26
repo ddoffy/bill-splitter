@@ -454,8 +454,12 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         })
         .collect();
     
-    // Sort settlements by name for consistent display
-    settlements.sort_by(|a, b| a.name.cmp(&b.name));
+    // Sort settlements: Payers (negative balance) first, then Receivers (positive balance)
+    settlements.sort_by(|a, b| {
+        a.balance.partial_cmp(&b.balance)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.name.cmp(&b.name))
+    });
 
     Json(CalculateResponse {
         total_spent: total_spent_base + total_explicit_tip,
