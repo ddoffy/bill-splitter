@@ -331,15 +331,21 @@ function clearAllPeople() {
 function renderPeople(people) {
     renderParticipants(people);
 
+    const expensesCount = document.getElementById('expensesCount');
+    if (expensesCount) {
+        expensesCount.textContent = `(${people ? people.length : 0})`;
+    }
+
     if (!people || people.length === 0) {
         peopleList.innerHTML = '<div class="empty-message">No expenses added yet. Add one to get started!</div>';
         return;
     }
     
-    peopleList.innerHTML = people.map(person => `
+    peopleList.innerHTML = people.map((person, index) => `
         <div class="person-item ${person.is_sponsor ? 'sponsor' : ''}">
             <div class="person-info">
                 <div class="person-name">
+                    <span style="color: #888; font-size: 0.9em; margin-right: 8px;">#${index + 1}</span>
                     ${person.name}
                     ${person.is_sponsor ? '<span class="person-badge">SPONSOR</span>' : ''}
                     ${person.is_receiver ? '<span class="person-badge receiver-badge">RECEIVER</span>' : ''}
