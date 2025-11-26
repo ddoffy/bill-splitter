@@ -38,6 +38,8 @@ struct DbSession {
     last_accessed_at: DateTime<Utc>,
     #[sqlx(default)]
     fund_amount: f64,
+    #[sqlx(default)]
+    tip_percentage: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,6 +47,8 @@ struct CreateSessionRequest {
     people: Vec<Person>,
     #[serde(default)]
     fund_amount: f64,
+    #[serde(default)]
+    tip_percentage: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -57,6 +61,7 @@ struct CreateSessionResponse {
 struct GetSessionResponse {
     people: Vec<Person>,
     fund_amount: f64,
+    tip_percentage: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,6 +69,8 @@ struct UpdateSessionRequest {
     people: Vec<Person>,
     #[serde(default)]
     fund_amount: f64,
+    #[serde(default)]
+    tip_percentage: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,12 +80,15 @@ struct CalculateRequest {
     restrict_sponsor_to_spent: Option<bool>,
     #[serde(default)]
     fund_amount: f64,
+    #[serde(default)]
+    tip_percentage: f64,
 }
 
 #[derive(Debug, Serialize)]
 struct Settlement {
     name: String,
     amount_spent: f64,
+    tip_paid: f64,
     sponsor_cost: f64,
     share_cost: f64,
     balance: f64,
@@ -91,6 +101,7 @@ struct CalculateResponse {
     total_spent: f64,
     total_sponsored: f64,
     fund_amount: f64,
+    total_tip: f64,
     amount_to_share: f64,
     num_participants: usize,
     per_person_share: f64,
@@ -135,6 +146,10 @@ async fn main() {
     // Migration: Add fund_amount column if it doesn't exist
     // We ignore the error because it will fail if the column already exists
     let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN fund_amount REAL DEFAULT 0.0")
+        .execute(&pool)
+        .await;
+
+    let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN tip_percentage REAL DEFAULT 0.0")
         .execute(&pool)
         .await;
 
@@ -194,7 +209,7 @@ async fn create_session(
     let people_json = serde_json::to_string(&request.people).unwrap_or_default();
     
     sqlx::query(
-        "INSERT INTO sessions (id, edit_secret, people, created_at, last_accessed_at, fund_amount) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO sessions (id, edit_secret, people, created_at, last_accessed_at, fund_amount, tip_percentage) VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(&edit_secret)
@@ -202,6 +217,7 @@ async fn create_session(
     .bind(now)
     .bind(now)
     .bind(request.fund_amount)
+    .bind(request.tip_percentage)
     .execute(&pool)
     .await
     .unwrap();
@@ -241,6 +257,7 @@ async fn get_session(
         Ok(Json(GetSessionResponse {
             people,
             fund_amount: session.fund_amount,
+            tip_percentage: session.tip_percentage,
         }))
     } else {
         Err(axum::http::StatusCode::NOT_FOUND)
@@ -269,9 +286,10 @@ async fn update_session(
                     .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
                 let now = Utc::now();
                 
-                sqlx::query("UPDATE sessions SET people = ?, fund_amount = ?, last_accessed_at = ? WHERE id = ?")
+                sqlx::query("UPDATE sessions SET people = ?, fund_amount = ?, tip_percentage = ?, last_accessed_at = ? WHERE id = ?")
                     .bind(people_json)
                     .bind(request.fund_amount)
+                    .bind(request.tip_percentage)
                     .bind(now)
                     .bind(&id)
                     .execute(&pool)
@@ -294,6 +312,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     let include_sponsor = request.include_sponsor;
     let restrict_sponsor = request.restrict_sponsor_to_spent.unwrap_or(true);
     let fund_amount = request.fund_amount;
+    let tip_percentage = request.tip_percentage;
 
     // Group people by name to handle multiple entries for the same person
     struct PersonSummary {
@@ -328,23 +347,30 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     // Convert map to vector for processing
     let unique_people: Vec<PersonSummary> = grouped_people.into_values().collect();
 
-    let total_spent: f64 = unique_people.iter().map(|p| p.amount_spent).sum();
-    let total_sponsored_raw: f64 = unique_people.iter().map(|p| p.sponsor_amount).sum();
+    let tip_multiplier = 1.0 + (tip_percentage / 100.0);
+
+    // Calculate totals with tip included (as if it's a tax)
+    let total_spent_base: f64 = unique_people.iter().map(|p| p.amount_spent).sum();
+    let total_spent_with_tip = total_spent_base * tip_multiplier;
+    
+    // Sponsorship is a fixed amount, not affected by tip/tax
+    let total_sponsored: f64 = unique_people.iter().map(|p| p.sponsor_amount).sum();
     
     // Handle sponsorship logic based on restriction setting
     // Always restrict sponsorship to total spent to ensure no one profits (negative share)
-    let (effective_total_sponsored, sponsorship_ratio) = if total_sponsored_raw > total_spent {
-        // Restrict enabled: Cap sponsorship at total spent
+    let (effective_total_sponsored, sponsorship_ratio) = if total_sponsored > total_spent_with_tip {
+        // Restrict enabled: Cap sponsorship at total spent (including tip)
         // Scale down sponsor contributions
-        let ratio = if total_sponsored_raw > 0.0 { total_spent / total_sponsored_raw } else { 0.0 };
-        (total_spent, ratio)
+        let ratio = if total_sponsored > 0.0 { total_spent_with_tip / total_sponsored } else { 0.0 };
+        (total_spent_with_tip, ratio)
     } else {
         // Sponsorship <= spent: Use actual sponsorship amount
-        (total_sponsored_raw, 1.0)
+        (total_sponsored, 1.0)
     };
     
     // The amount that needs to be shared among participants
-    let amount_to_share = total_spent - effective_total_sponsored - fund_amount;
+    // Fund amount is flat cash, so it's subtracted from the total needed
+    let amount_to_share = total_spent_with_tip - effective_total_sponsored - fund_amount;
 
     let participants: Vec<&PersonSummary> = if include_sponsor {
         unique_people.iter().collect()
@@ -362,8 +388,16 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     let mut settlements: Vec<Settlement> = unique_people
         .iter()
         .map(|person| {
+            // Calculate tip paid by this person (assumed proportional to spend)
+            let tip_paid = if tip_percentage > 0.0 {
+                person.amount_spent * (tip_percentage / 100.0)
+            } else {
+                0.0
+            };
+
             // Calculate how much this person should pay (cost)
             let sponsor_cost = if person.is_sponsor {
+                // Sponsorship is flat amount
                 person.sponsor_amount * sponsorship_ratio
             } else {
                 0.0
@@ -384,8 +418,8 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
 
             let total_cost = sponsor_cost + share_cost;
 
-            // Balance = What they paid (amount_spent) - What they should pay (total_cost)
-            let balance = person.amount_spent - total_cost;
+            // Balance = What they paid (amount_spent + tip_paid) - What they should pay (total_cost)
+            let balance = (person.amount_spent + tip_paid) - total_cost;
 
             let settlement_type = if balance > 0.01 {
                 "receive".to_string()
@@ -398,6 +432,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
             Settlement {
                 name: person.name.clone(),
                 amount_spent: person.amount_spent,
+                tip_paid,
                 sponsor_cost,
                 share_cost,
                 balance,
@@ -411,9 +446,10 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     settlements.sort_by(|a, b| a.name.cmp(&b.name));
 
     Json(CalculateResponse {
-        total_spent,
+        total_spent: total_spent_base,
         total_sponsored: effective_total_sponsored,
         fund_amount,
+        total_tip: total_spent_with_tip - total_spent_base,
         amount_to_share,
         num_participants,
         per_person_share,

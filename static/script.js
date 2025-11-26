@@ -31,6 +31,9 @@ const archiveBtn = document.getElementById('archiveBtn');
 const historyList = document.getElementById('historyList');
 const participantSelect = document.getElementById('participantSelect');
 const fundAmountInput = document.getElementById('fundAmount');
+const addTipCheckbox = document.getElementById('addTip');
+const tipAmountGroup = document.getElementById('tipAmountGroup');
+const tipPercentageInput = document.getElementById('tipPercentage');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -40,6 +43,8 @@ isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
 amountSpentInput.addEventListener('input', function() { formatInputMoney(this); });
 sponsorAmountInput.addEventListener('input', function() { formatInputMoney(this); });
 if (fundAmountInput) fundAmountInput.addEventListener('input', function() { formatInputMoney(this); savePeople(); });
+if (addTipCheckbox) addTipCheckbox.addEventListener('change', function() { toggleTipAmount(); savePeople(); });
+if (tipPercentageInput) tipPercentageInput.addEventListener('input', savePeople);
 cancelEditBtn.addEventListener('click', cancelEdit);
 if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
@@ -91,6 +96,12 @@ function toggleSponsorAmount() {
     sponsorAmountGroup.style.display = isSponsorCheckbox.checked ? 'block' : 'none';
     if (!isSponsorCheckbox.checked) {
         sponsorAmountInput.value = '0';
+    }
+}
+
+function toggleTipAmount() {
+    if (addTipCheckbox && tipAmountGroup) {
+        tipAmountGroup.style.display = addTipCheckbox.checked ? 'block' : 'none';
     }
 }
 
@@ -187,6 +198,11 @@ async function loadSession(id) {
             if (data.fund_amount && fundAmountInput) {
                 fundAmountInput.value = formatMoney(data.fund_amount);
             }
+            if (data.tip_percentage > 0 && addTipCheckbox && tipPercentageInput) {
+                addTipCheckbox.checked = true;
+                tipPercentageInput.value = data.tip_percentage;
+                toggleTipAmount();
+            }
             renderPeople(people);
         } else {
             alert('Session not found! Loading local data instead.');
@@ -202,6 +218,7 @@ function loadPeopleFromLocalStorage() {
     try {
         const storedPeople = localStorage.getItem('splitBillsPeople');
         const storedFund = localStorage.getItem('splitBillsFund');
+        const storedTip = localStorage.getItem('splitBillsTip');
         
         if (storedPeople) {
             people = JSON.parse(storedPeople);
@@ -211,6 +228,13 @@ function loadPeopleFromLocalStorage() {
         
         if (storedFund && fundAmountInput) {
             fundAmountInput.value = formatMoney(parseFloat(storedFund));
+        }
+
+        if (storedTip && addTipCheckbox && tipPercentageInput) {
+            const tipData = JSON.parse(storedTip);
+            addTipCheckbox.checked = tipData.enabled;
+            tipPercentageInput.value = tipData.percentage;
+            toggleTipAmount();
         }
         
         renderPeople(people);
@@ -231,6 +255,14 @@ async function savePeople() {
         fundAmount = parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0;
         localStorage.setItem('splitBillsFund', fundAmount);
     }
+
+    let tipPercentage = 0;
+    if (addTipCheckbox && tipPercentageInput) {
+        const isTipEnabled = addTipCheckbox.checked;
+        const percentage = parseFloat(tipPercentageInput.value) || 0;
+        tipPercentage = isTipEnabled ? percentage : 0;
+        localStorage.setItem('splitBillsTip', JSON.stringify({ enabled: isTipEnabled, percentage: percentage }));
+    }
     
     renderPeople(people);
     
@@ -245,7 +277,8 @@ async function savePeople() {
                 },
                 body: JSON.stringify({ 
                     people,
-                    fund_amount: fundAmount
+                    fund_amount: fundAmount,
+                    tip_percentage: tipPercentage
                 })
             });
         } catch (e) {
@@ -261,6 +294,7 @@ async function shareSplit() {
     }
     
     const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
+    const tipPercentage = (addTipCheckbox && addTipCheckbox.checked && tipPercentageInput) ? (parseFloat(tipPercentageInput.value) || 0) : 0;
     
     try {
         const response = await fetch('/api/sessions', {
@@ -268,7 +302,8 @@ async function shareSplit() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 people,
-                fund_amount: fundAmount
+                fund_amount: fundAmount,
+                tip_percentage: tipPercentage
             })
         });
         
@@ -542,6 +577,7 @@ async function calculateSplit() {
         
         const includeSponsor = includeSponsorCheckbox.checked;
         const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
+        const tipPercentage = (addTipCheckbox && addTipCheckbox.checked && tipPercentageInput) ? (parseFloat(tipPercentageInput.value) || 0) : 0;
         
         const calcResponse = await fetch('/api/calculate', {
             method: 'POST',
@@ -551,7 +587,8 @@ async function calculateSplit() {
             body: JSON.stringify({
                 people,
                 include_sponsor: includeSponsor,
-                fund_amount: fundAmount
+                fund_amount: fundAmount,
+                tip_percentage: tipPercentage
             })
         });
         
@@ -576,6 +613,23 @@ async function calculateSplit() {
 // Display calculation results
 function displayResults(result) {
     document.getElementById('totalSpent').textContent = formatMoney(result.total_spent);
+    
+    const tipRow = document.getElementById('tipRow');
+    const totalTip = document.getElementById('totalTip');
+    const tipPercentDisplay = document.getElementById('tipPercentDisplay');
+    
+    if (result.total_tip > 0) {
+        tipRow.style.display = 'block';
+        totalTip.textContent = formatMoney(result.total_tip);
+        // Calculate percentage back from total if needed, or just use input value?
+        // Better to use input value or pass it back. We don't pass percentage back in response explicitly except implicitly via math.
+        // But we have the input value locally.
+        const tipPercentage = (addTipCheckbox && addTipCheckbox.checked && tipPercentageInput) ? tipPercentageInput.value : 0;
+        tipPercentDisplay.textContent = tipPercentage;
+    } else {
+        tipRow.style.display = 'none';
+    }
+
     document.getElementById('totalSponsored').textContent = formatMoney(result.total_sponsored);
     
     const fundRow = document.getElementById('fundRow');
@@ -606,7 +660,7 @@ function displayResults(result) {
                     <strong>${settlement.name}</strong> should pay <span class="settlement-amount">$${formatMoney(Math.abs(settlement.balance))}</span>${payTo}
                 </div>
                 <div class="settlement-details">
-                    (Spent: $${formatMoney(settlement.amount_spent)} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
+                    (Spent: $${formatMoney(settlement.amount_spent)}${settlement.tip_paid > 0 ? ` + Tip: $${formatMoney(settlement.tip_paid)}` : ''} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
                 </div>`;
             cssClass = 'pay';
         } else if (settlement.settlement_type === 'receive') {
@@ -616,7 +670,7 @@ function displayResults(result) {
                     <strong>${settlement.name}</strong> should receive <span class="settlement-amount">$${formatMoney(settlement.balance)}</span>${receiveFrom}
                 </div>
                 <div class="settlement-details">
-                    (Spent: $${formatMoney(settlement.amount_spent)} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
+                    (Spent: $${formatMoney(settlement.amount_spent)}${settlement.tip_paid > 0 ? ` + Tip: $${formatMoney(settlement.tip_paid)}` : ''} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
                 </div>`;
             cssClass = 'receive';
         } else {
@@ -625,7 +679,7 @@ function displayResults(result) {
                     <strong>${settlement.name}</strong> is all settled up! <span class="settlement-amount">$0.00</span>
                 </div>
                 <div class="settlement-details">
-                    (Spent: $${formatMoney(settlement.amount_spent)} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
+                    (Spent: $${formatMoney(settlement.amount_spent)}${settlement.tip_paid > 0 ? ` + Tip: $${formatMoney(settlement.tip_paid)}` : ''} - Sponsor: $${formatMoney(settlement.sponsor_cost)} - Share: $${formatMoney(settlement.share_cost)})
                 </div>`;
             cssClass = 'settled';
         }
@@ -721,11 +775,13 @@ function archiveSession() {
     }
     
     const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
+    const tipPercentage = (addTipCheckbox && addTipCheckbox.checked && tipPercentageInput) ? (parseFloat(tipPercentageInput.value) || 0) : 0;
 
     const historyItem = {
         timestamp: Date.now(),
         people: JSON.parse(JSON.stringify(people)), // Deep copy
         fundAmount: fundAmount,
+        tipPercentage: tipPercentage,
         sessionId: currentSessionId
     };
     
@@ -734,7 +790,12 @@ function archiveSession() {
     
     // Clear current session
     if (fundAmountInput) fundAmountInput.value = '';
+    if (addTipCheckbox) {
+        addTipCheckbox.checked = false;
+        toggleTipAmount();
+    }
     localStorage.removeItem('splitBillsFund');
+    localStorage.removeItem('splitBillsTip');
     clearAllPeople(true);
     
     // If we were in a shared session, reset URL to home
@@ -771,6 +832,18 @@ function useTemplate(index) {
         } else {
             fundAmountInput.value = '';
         }
+    }
+
+    // Restore tip if available
+    if (addTipCheckbox && tipPercentageInput) {
+        if (item.tipPercentage > 0) {
+            addTipCheckbox.checked = true;
+            tipPercentageInput.value = item.tipPercentage;
+        } else {
+            addTipCheckbox.checked = false;
+            tipPercentageInput.value = '10';
+        }
+        toggleTipAmount();
     }
     
     // Reset session context
