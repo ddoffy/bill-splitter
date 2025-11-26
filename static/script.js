@@ -532,11 +532,13 @@ function renderPeople(people) {
         return;
     }
     
-    peopleList.innerHTML = people.map((person, index) => `
+    peopleList.innerHTML = [...people].reverse().map((person, index) => {
+        const originalIndex = people.length - 1 - index;
+        return `
         <div class="person-item ${person.is_sponsor ? 'sponsor' : ''}">
             <div class="person-info">
                 <div class="person-name">
-                    <span style="color: #888; font-size: 0.9em; margin-right: 8px;">#${index + 1}</span>
+                    <span style="color: #888; font-size: 0.9em; margin-right: 8px;">#${originalIndex + 1}</span>
                     ${person.name}
                     ${person.is_sponsor ? '<span class="person-badge">SPONSOR</span>' : ''}
                     ${person.is_receiver ? '<span class="person-badge receiver-badge">RECEIVER</span>' : ''}
@@ -570,7 +572,7 @@ function renderPeople(people) {
                 <button class="btn btn-danger" onclick="removePerson(${person.id})">Remove</button>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function renderParticipants(people) {
