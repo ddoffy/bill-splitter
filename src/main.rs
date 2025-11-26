@@ -36,11 +36,15 @@ struct DbSession {
     people: String,
     created_at: DateTime<Utc>,
     last_accessed_at: DateTime<Utc>,
+    #[sqlx(default)]
+    fund_amount: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CreateSessionRequest {
     people: Vec<Person>,
+    #[serde(default)]
+    fund_amount: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,11 +56,14 @@ struct CreateSessionResponse {
 #[derive(Debug, Serialize)]
 struct GetSessionResponse {
     people: Vec<Person>,
+    fund_amount: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct UpdateSessionRequest {
     people: Vec<Person>,
+    #[serde(default)]
+    fund_amount: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,6 +71,8 @@ struct CalculateRequest {
     people: Vec<Person>,
     include_sponsor: bool,
     restrict_sponsor_to_spent: Option<bool>,
+    #[serde(default)]
+    fund_amount: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,6 +90,7 @@ struct Settlement {
 struct CalculateResponse {
     total_spent: f64,
     total_sponsored: f64,
+    fund_amount: f64,
     amount_to_share: f64,
     num_participants: usize,
     per_person_share: f64,
@@ -121,6 +131,12 @@ async fn main() {
     .execute(&pool)
     .await
     .expect("Failed to create table");
+
+    // Migration: Add fund_amount column if it doesn't exist
+    // We ignore the error because it will fail if the column already exists
+    let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN fund_amount REAL DEFAULT 0.0")
+        .execute(&pool)
+        .await;
 
     let cleanup_pool = pool.clone();
     tokio::spawn(async move {
@@ -178,13 +194,14 @@ async fn create_session(
     let people_json = serde_json::to_string(&request.people).unwrap_or_default();
     
     sqlx::query(
-        "INSERT INTO sessions (id, edit_secret, people, created_at, last_accessed_at) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO sessions (id, edit_secret, people, created_at, last_accessed_at, fund_amount) VALUES (?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(&edit_secret)
     .bind(&people_json)
     .bind(now)
     .bind(now)
+    .bind(request.fund_amount)
     .execute(&pool)
     .await
     .unwrap();
@@ -223,6 +240,7 @@ async fn get_session(
             
         Ok(Json(GetSessionResponse {
             people,
+            fund_amount: session.fund_amount,
         }))
     } else {
         Err(axum::http::StatusCode::NOT_FOUND)
@@ -251,8 +269,9 @@ async fn update_session(
                     .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
                 let now = Utc::now();
                 
-                sqlx::query("UPDATE sessions SET people = ?, last_accessed_at = ? WHERE id = ?")
+                sqlx::query("UPDATE sessions SET people = ?, fund_amount = ?, last_accessed_at = ? WHERE id = ?")
                     .bind(people_json)
+                    .bind(request.fund_amount)
                     .bind(now)
                     .bind(&id)
                     .execute(&pool)
@@ -274,6 +293,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     let people = request.people;
     let include_sponsor = request.include_sponsor;
     let restrict_sponsor = request.restrict_sponsor_to_spent.unwrap_or(true);
+    let fund_amount = request.fund_amount;
 
     // Group people by name to handle multiple entries for the same person
     struct PersonSummary {
@@ -324,7 +344,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     };
     
     // The amount that needs to be shared among participants
-    let amount_to_share = total_spent - effective_total_sponsored;
+    let amount_to_share = total_spent - effective_total_sponsored - fund_amount;
 
     let participants: Vec<&PersonSummary> = if include_sponsor {
         unique_people.iter().collect()
@@ -393,6 +413,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     Json(CalculateResponse {
         total_spent,
         total_sponsored: effective_total_sponsored,
+        fund_amount,
         amount_to_share,
         num_participants,
         per_person_share,

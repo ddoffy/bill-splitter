@@ -99,6 +99,11 @@
 
         <div class="card">
             <h2>Settings</h2>
+            <div class="form-group">
+                <label for="fundAmount">Fund / Discount Amount:</label>
+                <input type="text" id="fundAmount" inputmode="decimal" placeholder="0.00">
+                <small style="color: #666; display: block; margin-top: 4px;">Amount available to cover expenses before splitting (e.g. team budget)</small>
+            </div>
             <div class="form-group checkbox-group">
                 <label>
                     <input type="checkbox" id="includeSponsorInSplit" checked>
@@ -113,6 +118,7 @@
                 <div class="summary">
                     <p><strong>Total Spent:</strong> $<span id="totalSpent">0.00</span></p>
                     <p><strong>Total Sponsored:</strong> $<span id="totalSponsored">0.00</span></p>
+                    <p id="fundRow" style="display: none;"><strong>Fund Used:</strong> $<span id="fundUsed">0.00</span></p>
                     <p><strong>Amount to Share:</strong> $<span id="amountToShare">0.00</span></p>
                     <p><strong>Number of Participants:</strong> <span id="numParticipants">0</span></p>
                     <p><strong>Per Person Share:</strong> $<span id="perPersonShare">0.00</span></p>

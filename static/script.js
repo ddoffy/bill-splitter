@@ -30,6 +30,7 @@ const copyEditLinkBtn = document.getElementById('copyEditLink');
 const archiveBtn = document.getElementById('archiveBtn');
 const historyList = document.getElementById('historyList');
 const participantSelect = document.getElementById('participantSelect');
+const fundAmountInput = document.getElementById('fundAmount');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -38,6 +39,7 @@ clearAllBtn.addEventListener('click', clearAllPeople);
 isSponsorCheckbox.addEventListener('change', toggleSponsorAmount);
 amountSpentInput.addEventListener('input', function() { formatInputMoney(this); });
 sponsorAmountInput.addEventListener('input', function() { formatInputMoney(this); });
+if (fundAmountInput) fundAmountInput.addEventListener('input', function() { formatInputMoney(this); savePeople(); });
 cancelEditBtn.addEventListener('click', cancelEdit);
 if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
@@ -182,6 +184,9 @@ async function loadSession(id) {
         if (response.ok) {
             const data = await response.json();
             people = data.people;
+            if (data.fund_amount && fundAmountInput) {
+                fundAmountInput.value = formatMoney(data.fund_amount);
+            }
             renderPeople(people);
         } else {
             alert('Session not found! Loading local data instead.');
@@ -196,11 +201,18 @@ async function loadSession(id) {
 function loadPeopleFromLocalStorage() {
     try {
         const storedPeople = localStorage.getItem('splitBillsPeople');
+        const storedFund = localStorage.getItem('splitBillsFund');
+        
         if (storedPeople) {
             people = JSON.parse(storedPeople);
         } else {
             people = [];
         }
+        
+        if (storedFund && fundAmountInput) {
+            fundAmountInput.value = formatMoney(parseFloat(storedFund));
+        }
+        
         renderPeople(people);
     } catch (error) {
         console.error('Error loading people from local storage:', error);
@@ -213,6 +225,13 @@ function loadPeopleFromLocalStorage() {
 async function savePeople() {
     // Always save to local storage as backup/cache
     localStorage.setItem('splitBillsPeople', JSON.stringify(people));
+    
+    let fundAmount = 0;
+    if (fundAmountInput) {
+        fundAmount = parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0;
+        localStorage.setItem('splitBillsFund', fundAmount);
+    }
+    
     renderPeople(people);
     
     // If we are in an editable session, sync to server
@@ -224,7 +243,10 @@ async function savePeople() {
                     'Content-Type': 'application/json',
                     'X-Edit-Secret': currentEditSecret
                 },
-                body: JSON.stringify({ people })
+                body: JSON.stringify({ 
+                    people,
+                    fund_amount: fundAmount
+                })
             });
         } catch (e) {
             console.error('Failed to sync session', e);
@@ -238,11 +260,16 @@ async function shareSplit() {
         return;
     }
     
+    const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
+    
     try {
         const response = await fetch('/api/sessions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ people })
+            body: JSON.stringify({ 
+                people,
+                fund_amount: fundAmount
+            })
         });
         
         if (response.ok) {
@@ -388,8 +415,8 @@ function removePerson(id) {
 }
 
 // Clear all people
-function clearAllPeople() {
-    if (confirm('Are you sure you want to remove all people?')) {
+function clearAllPeople(skipConfirm = false) {
+    if (skipConfirm || confirm('Are you sure you want to remove all people?')) {
         people = [];
         savePeople();
         resultsSection.style.display = 'none';
@@ -514,6 +541,7 @@ async function calculateSplit() {
         }
         
         const includeSponsor = includeSponsorCheckbox.checked;
+        const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
         
         const calcResponse = await fetch('/api/calculate', {
             method: 'POST',
@@ -522,7 +550,8 @@ async function calculateSplit() {
             },
             body: JSON.stringify({
                 people,
-                include_sponsor: includeSponsor
+                include_sponsor: includeSponsor,
+                fund_amount: fundAmount
             })
         });
         
@@ -548,6 +577,16 @@ async function calculateSplit() {
 function displayResults(result) {
     document.getElementById('totalSpent').textContent = formatMoney(result.total_spent);
     document.getElementById('totalSponsored').textContent = formatMoney(result.total_sponsored);
+    
+    const fundRow = document.getElementById('fundRow');
+    const fundUsed = document.getElementById('fundUsed');
+    if (result.fund_amount > 0) {
+        fundRow.style.display = 'block';
+        fundUsed.textContent = formatMoney(result.fund_amount);
+    } else {
+        fundRow.style.display = 'none';
+    }
+    
     document.getElementById('amountToShare').textContent = formatMoney(result.amount_to_share);
     document.getElementById('numParticipants').textContent = result.num_participants;
     document.getElementById('perPersonShare').textContent = formatMoney(result.per_person_share);
@@ -681,9 +720,12 @@ function archiveSession() {
         return;
     }
     
+    const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
+
     const historyItem = {
         timestamp: Date.now(),
         people: JSON.parse(JSON.stringify(people)), // Deep copy
+        fundAmount: fundAmount,
         sessionId: currentSessionId
     };
     
@@ -691,7 +733,9 @@ function archiveSession() {
     saveHistoryToLocalStorage();
     
     // Clear current session
-    clearAllPeople();
+    if (fundAmountInput) fundAmountInput.value = '';
+    localStorage.removeItem('splitBillsFund');
+    clearAllPeople(true);
     
     // If we were in a shared session, reset URL to home
     if (currentSessionId) {
@@ -719,6 +763,15 @@ function useTemplate(index) {
     
     // Deep copy people from history
     people = JSON.parse(JSON.stringify(item.people));
+    
+    // Restore fund amount if available
+    if (fundAmountInput) {
+        if (item.fundAmount) {
+            fundAmountInput.value = formatMoney(item.fundAmount);
+        } else {
+            fundAmountInput.value = '';
+        }
+    }
     
     // Reset session context
     currentSessionId = null;
