@@ -29,6 +29,7 @@ const copyViewLinkBtn = document.getElementById('copyViewLink');
 const copyEditLinkBtn = document.getElementById('copyEditLink');
 const archiveBtn = document.getElementById('archiveBtn');
 const historyList = document.getElementById('historyList');
+const participantSelect = document.getElementById('participantSelect');
 
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
@@ -40,6 +41,15 @@ if (shareBtn) shareBtn.addEventListener('click', shareSplit);
 if (copyViewLinkBtn) copyViewLinkBtn.addEventListener('click', () => copyToClipboard(viewLinkInput, copyViewLinkBtn));
 if (copyEditLinkBtn) copyEditLinkBtn.addEventListener('click', () => copyToClipboard(editLinkInput, copyEditLinkBtn));
 if (archiveBtn) archiveBtn.addEventListener('click', archiveSession);
+if (participantSelect) {
+    participantSelect.addEventListener('change', function() {
+        if (this.value) {
+            personNameInput.value = this.value;
+            this.value = ""; // Reset selection
+            amountSpentInput.focus(); // Move to next field
+        }
+    });
+}
 
 function copyToClipboard(inputElement, buttonElement) {
     inputElement.select();
@@ -382,9 +392,15 @@ function renderParticipants(people) {
     const uniqueNames = [...new Set(people.map(p => p.name))].sort();
     uniquePeopleCount.textContent = `(${uniqueNames.length})`;
 
-    const datalist = document.getElementById('participantsDatalist');
-    if (datalist) {
-        datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+    const participantSelect = document.getElementById('participantSelect');
+    if (participantSelect) {
+        if (uniqueNames.length > 0) {
+            participantSelect.style.display = 'block';
+            participantSelect.innerHTML = '<option value="">-- Select existing participant --</option>' + 
+                uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
+        } else {
+            participantSelect.style.display = 'none';
+        }
     }
 
     if (uniqueNames.length === 0) {
