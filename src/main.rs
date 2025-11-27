@@ -16,6 +16,9 @@ use sqlx::{SqlitePool, sqlite::SqlitePoolOptions, FromRow};
 mod ai;
 use ai::{AiProvider, OpenAiProvider};
 
+mod email;
+
+
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate;
@@ -173,6 +176,7 @@ async fn main() {
         .route("/api/sessions/:id", get(get_session).put(update_session))
         .route("/api/ai/text", post(process_ai_text))
         .route("/api/ai/image", post(process_ai_image))
+        .route("/api/email", post(send_email_handler))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);
 
@@ -519,4 +523,25 @@ async fn process_ai_image(mut multipart: Multipart) -> impl IntoResponse {
         }
     }
     (axum::http::StatusCode::BAD_REQUEST, "No image field found").into_response()
+}
+
+#[derive(Deserialize)]
+struct SendEmailRequest {
+    to: Vec<String>,
+    subject: String,
+    html_content: String,
+    cc: Option<Vec<String>>,
+    bcc: Option<Vec<String>>,
+}
+
+async fn send_email_handler(Json(payload): Json<SendEmailRequest>) -> impl IntoResponse {
+    if std::env::var("RESEND_API_KEY").is_err() {
+         return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "RESEND_API_KEY not configured").into_response();
+    }
+
+    let email_service = email::EmailService::new();
+    match email_service.send_email(payload.to, &payload.subject, &payload.html_content, payload.cc, payload.bcc).await {
+        Ok(_) => axum::http::StatusCode::OK.into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }
