@@ -61,6 +61,7 @@
                         <button class="tab-btn active" onclick="switchTab('manual')" id="tab-btn-manual" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid #4299e1; font-weight: bold; cursor: pointer; color: #2d3748;">Manual</button>
                         <button class="tab-btn" onclick="switchTab('image')" id="tab-btn-image" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid transparent; cursor: pointer; color: #718096;">Scan Image</button>
                         <button class="tab-btn" onclick="switchTab('text')" id="tab-btn-text" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid transparent; cursor: pointer; color: #718096;">Paste Text</button>
+                        <button class="tab-btn" onclick="switchTab('ai')" id="tab-btn-ai" style="padding: 10px 20px; border: none; background: none; border-bottom: 2px solid transparent; cursor: pointer; color: #718096;">AI</button>
                     </div>
 
                     <!-- Manual Tab (Existing Form) -->
@@ -176,6 +177,19 @@
                         <button onclick="processText()" class="btn btn-primary" style="width: 100%;">Process Text</button>
                         <div id="textLoading" style="display: none; margin-top: 15px; text-align: center; color: #4299e1;">
                             Processing text with AI... <span class="loading-dots">...</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Tab -->
+                    <div id="tab-ai" class="tab-content" style="display: none;">
+                        <div class="form-group">
+                            <label for="aiDescription">Describe Expenses</label>
+                            <textarea id="aiDescription" rows="8" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace; font-size: 0.9em;" placeholder="Describe who paid what... e.g. Alice paid 50 for lunch, Bob paid 20 for drinks"></textarea>
+                        </div>
+
+                        <button onclick="processAiSplit()" class="btn btn-primary" style="width: 100%;">Process with AI</button>
+                        <div id="aiLoading" style="display: none; margin-top: 15px; text-align: center; color: #4299e1;">
+                            Processing with AI... <span class="loading-dots">...</span>
                         </div>
                     </div>
                 </div>

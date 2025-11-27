@@ -3,6 +3,7 @@ use core::panic;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use serde_json::json;
 use base64::{Engine as _, engine::general_purpose};
 
@@ -24,9 +25,30 @@ pub struct ReceiptData {
     pub items: Vec<ReceiptItem>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AiExpense {
+    pub name: String,
+    pub description: String,
+    pub amount_spent: f64,
+    #[serde(default)]
+    pub tip: f64,
+    #[serde(default)]
+    pub is_sponsor: bool,
+    #[serde(default)]
+    pub sponsor_amount: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AiSplitResponse {
+    pub expenses: Vec<AiExpense>,
+    #[serde(default)]
+    pub fund_amount: Option<f64>,
+}
+
 #[async_trait]
 pub trait AiProvider: Send + Sync {
     async fn process_text(&self, text: &str) -> Result<ReceiptData, String>;
+    async fn process_split_text(&self, text: &str) -> Result<AiSplitResponse, String>;
     async fn process_image(&self, image_data: &[u8], mime_type: &str) -> Result<ReceiptData, String>;
 }
 
@@ -51,7 +73,7 @@ impl OpenAiProvider {
         }
     }
 
-    async fn make_request(&self, messages: Vec<serde_json::Value>) -> Result<ReceiptData, String> {
+    async fn make_request<T: DeserializeOwned>(&self, messages: Vec<serde_json::Value>) -> Result<T, String> {
         // read temperature from env or default to 0.5
         let temperature: f64 = std::env::var("OPENAI_API_TEMPERATURE")
             .unwrap_or_else(|_| "0.5".into())
@@ -84,7 +106,7 @@ impl OpenAiProvider {
             .as_str()
             .ok_or("No content in response")?;
 
-        let data: ReceiptData = serde_json::from_str(content).map_err(|e| format!("Failed to parse JSON: {} - Content: {}", e, content))?;
+        let data: T = serde_json::from_str(content).map_err(|e| format!("Failed to parse JSON: {} - Content: {}", e, content))?;
         
         Ok(data)
     }
@@ -93,7 +115,27 @@ impl OpenAiProvider {
 #[async_trait]
 impl AiProvider for OpenAiProvider {
     async fn process_text(&self, text: &str) -> Result<ReceiptData, String> {
-        let system_prompt = "You are a helpful assistant that extracts receipt data. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount).";
+        let system_prompt = "You are a helpful assistant that extracts receipt data. The text may be in English or Vietnamese. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount).";
+        
+        let messages = vec![
+            json!({ "role": "system", "content": system_prompt }),
+            json!({ "role": "user", "content": text }),
+        ];
+
+        self.make_request(messages).await
+    }
+
+    async fn process_split_text(&self, text: &str) -> Result<AiSplitResponse, String> {
+        let system_prompt = "You are a helpful assistant that parses expense descriptions. \
+            The text may be in English, Vietnamese, or a mix of both. \
+            Extract a list of expenses from the text. \
+            For each expense, identify the person's name, a description of what they paid for, the amount spent, and any tip amount if specified. \
+            Also detect if the person is 'sponsoring' the amount (paying for everyone without expecting repayment). \
+            Also detect if there is a general 'fund', 'deposit', or 'quỹ' mentioned (amount available to cover expenses). \
+            Handle Vietnamese terms like 'trả' (paid), 'mua' (bought), 'tiền' (money), 'k' (thousand, e.g. 50k = 50000), 'tài trợ' (sponsor), 'bao' (treat/sponsor), 'mời' (treat), 'quỹ' (fund), 'đóng quỹ' (deposit). \
+            Output JSON matching the schema: { \"expenses\": [ { \"name\": string, \"description\": string, \"amount_spent\": number, \"tip\": number, \"is_sponsor\": boolean, \"sponsor_amount\": number } ], \"fund_amount\": number (optional) }. \
+            If tip is not specified, set it to 0. If description is not clear, use a generic one like 'Expense'. \
+            If is_sponsor is true, set sponsor_amount to the amount_spent unless specified otherwise.";
         
         let messages = vec![
             json!({ "role": "system", "content": system_prompt }),
@@ -107,7 +149,7 @@ impl AiProvider for OpenAiProvider {
         let base64_image = general_purpose::STANDARD.encode(image_data);
         let data_url = format!("data:{};base64,{}", mime_type, base64_image);
 
-        let system_prompt = "You are a helpful assistant that extracts receipt data from images. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount).";
+        let system_prompt = "You are a helpful assistant that extracts receipt data from images. The receipt may be in English or Vietnamese. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount).";
 
         let messages = vec![
             json!({ "role": "system", "content": system_prompt }),

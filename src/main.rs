@@ -187,6 +187,7 @@ async fn main() {
         .route("/api/sessions", post(create_session))
         .route("/api/sessions/:id", get(get_session).put(update_session))
         .route("/api/ai/text", post(process_ai_text))
+        .route("/api/ai/split", post(process_ai_split_text))
         .route("/api/ai/image", post(process_ai_image))
         .route("/api/email", post(send_email_handler))
         .nest_service("/static", ServeDir::new("static"))
@@ -515,6 +516,27 @@ async fn process_ai_text(
     }
     let provider = OpenAiProvider::new(api_key);
     match provider.process_text(&request.text).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn process_ai_split_text(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(request): Json<AiTextRequest>
+) -> impl IntoResponse {
+    let request_id = headers.get("X-Request-ID").and_then(|h| h.to_str().ok().map(|s| s.to_string()));
+    if let Err(e) = check_request_id(&state, request_id).await {
+        return e.into_response();
+    }
+
+    let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
+    if api_key.is_empty() {
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not set").into_response();
+    }
+    let provider = OpenAiProvider::new(api_key);
+    match provider.process_split_text(&request.text).await {
         Ok(data) => Json(data).into_response(),
         Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
     }

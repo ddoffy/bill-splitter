@@ -1172,6 +1172,88 @@ function handleImageSelect(input) {
     }
 }
 
+// Process AI Split Text
+async function processAiSplit() {
+    const text = document.getElementById('aiDescription').value;
+    if (!text.trim()) {
+        alert('Please enter some text');
+        return;
+    }
+
+    const btn = document.querySelector('#tab-ai button.btn-primary');
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+
+    const loading = document.getElementById('aiLoading');
+    loading.style.display = 'block';
+
+    try {
+        const requestId = generateUUID();
+        const response = await fetch('/api/ai/split', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Request-ID': requestId
+            },
+            body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) throw new Error('Failed to process text');
+
+        const data = await response.json();
+        
+        // Update fund amount if detected
+        if (data.fund_amount !== undefined && data.fund_amount !== null) {
+            const fundInput = document.getElementById('fundAmount');
+            if (fundInput) {
+                fundInput.value = formatMoney(data.fund_amount);
+                // Trigger input event to save
+                fundInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+        // Add all expenses
+        if (data.expenses && Array.isArray(data.expenses)) {
+            let count = 0;
+            data.expenses.forEach(expense => {
+                const person = {
+                    id: Date.now() + Math.floor(Math.random() * 1000000),
+                    name: expense.name || "Unknown",
+                    description: expense.description || "Expense",
+                    amount_spent: parseFloat(expense.amount_spent) || 0,
+                    tip: parseFloat(expense.tip) || 0,
+                    is_sponsor: expense.is_sponsor || false,
+                    sponsor_amount: parseFloat(expense.sponsor_amount) || 0,
+                    is_receiver: false
+                };
+                people.push(person);
+                count++;
+            });
+            
+            savePeople();
+            
+            // Clear input
+            document.getElementById('aiDescription').value = '';
+            
+            // Switch to manual tab to see results
+            switchTab('manual');
+            
+            // Show success message
+            // alert(`Added ${count} expenses!`);
+        } else {
+            alert('No expenses found in text.');
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert('Error processing text: ' + error.message);
+    } finally {
+        loading.style.display = 'none';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    }
+}
+
 // Process AI Text
 async function processText() {
     const text = document.getElementById('receiptText').value;
