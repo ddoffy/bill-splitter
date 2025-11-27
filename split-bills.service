@@ -9,8 +9,8 @@ WorkingDirectory=/home/doffy/workspace/rust/split-bills
 ExecStart=/home/doffy/workspace/rust/split-bills/target/release/split-bills
 Restart=always
 Environment=RUST_LOG=info
-Environment=OPENAI_API_MODEL=gpt-4o-mini
-Environment=OPENAI_API_KEY=
+Environment=OPENAI_API_MODEL=gpt-4o
+Environment=OPENAI_API_KEY=sk-YOUR_KEY_HERE
 
 [Install]
 WantedBy=multi-user.target
