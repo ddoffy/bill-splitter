@@ -1180,6 +1180,10 @@ async function processText() {
         return;
     }
 
+    const btn = document.querySelector('#tab-text button.btn-primary');
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+
     const loading = document.getElementById('textLoading');
     loading.style.display = 'block';
 
@@ -1191,9 +1195,13 @@ async function processText() {
     }
 
     try {
+        const requestId = generateUUID();
         const response = await fetch('/api/ai/text', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Request-ID': requestId
+            },
             body: JSON.stringify({ text })
         });
 
@@ -1207,6 +1215,8 @@ async function processText() {
         alert('Error processing text: ' + error.message);
     } finally {
         loading.style.display = 'none';
+        btn.disabled = false;
+        btn.style.opacity = '1';
     }
 }
 
@@ -1217,6 +1227,10 @@ async function processImage() {
         alert('Please select an image');
         return;
     }
+
+    const btn = document.getElementById('processImageBtn');
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
 
     const loading = document.getElementById('imageLoading');
     loading.style.display = 'block';
@@ -1232,8 +1246,12 @@ async function processImage() {
     formData.append('image', input.files[0]);
 
     try {
+        const requestId = generateUUID();
         const response = await fetch('/api/ai/image', {
             method: 'POST',
+            headers: {
+                'X-Request-ID': requestId
+            },
             body: formData
         });
 
@@ -1247,6 +1265,8 @@ async function processImage() {
         alert('Error processing image: ' + error.message);
     } finally {
         loading.style.display = 'none';
+        btn.disabled = false;
+        btn.style.opacity = '1';
     }
 }
 
@@ -1421,6 +1441,14 @@ function generateEmailHtml(result) {
     `;
     
     return html;
+}
+
+// UUID Generation
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
 
 

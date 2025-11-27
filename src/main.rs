@@ -6,7 +6,9 @@ use axum::{
 };
 use askama::Template;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
@@ -116,7 +118,11 @@ struct CalculateResponse {
     settlements: Vec<Settlement>,
 }
 
-type AppState = SqlitePool;
+#[derive(Clone)]
+struct AppState {
+    pool: SqlitePool,
+    processed_requests: Arc<Mutex<HashMap<String, DateTime<Utc>>>>,
+}
 
 const SESSION_EXPIRY_DAYS: i64 = 7;
 
@@ -169,6 +175,11 @@ async fn main() {
         }
     });
 
+    let state = AppState {
+        pool,
+        processed_requests: Arc::new(Mutex::new(HashMap::new())),
+    };
+
     let app = Router::new()
         .route("/", get(index))
         .route("/api/calculate", post(calculate_split))
@@ -178,7 +189,7 @@ async fn main() {
         .route("/api/ai/image", post(process_ai_image))
         .route("/api/email", post(send_email_handler))
         .nest_service("/static", ServeDir::new("static"))
-        .with_state(pool);
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:7777")
         .await
@@ -211,7 +222,7 @@ async fn index() -> impl IntoResponse {
 }
 
 async fn create_session(
-    State(pool): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<CreateSessionRequest>,
 ) -> Json<CreateSessionResponse> {
     let id = Uuid::new_v4().to_string();
@@ -229,7 +240,7 @@ async fn create_session(
     .bind(now)
     .bind(request.fund_amount)
     .bind(request.tip_percentage)
-    .execute(&pool)
+    .execute(&state.pool)
     .await
     .unwrap();
     
@@ -240,7 +251,7 @@ async fn create_session(
 }
 
 async fn get_session(
-    State(pool): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<GetSessionResponse>, axum::http::StatusCode> {
     let now = Utc::now();
@@ -248,7 +259,7 @@ async fn get_session(
     let update_result = sqlx::query("UPDATE sessions SET last_accessed_at = ? WHERE id = ?")
         .bind(now)
         .bind(&id)
-        .execute(&pool)
+        .execute(&state.pool)
         .await;
 
     if let Err(_) = update_result {
@@ -257,7 +268,7 @@ async fn get_session(
 
     let row: Option<DbSession> = sqlx::query_as("SELECT * FROM sessions WHERE id = ?")
         .bind(&id)
-        .fetch_optional(&pool)
+        .fetch_optional(&state.pool)
         .await
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -276,7 +287,7 @@ async fn get_session(
 }
 
 async fn update_session(
-    State(pool): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
     Json(request): Json<UpdateSessionRequest>,
@@ -287,7 +298,7 @@ async fn update_session(
     if let Some(secret) = secret_header {
         let row: Option<(String,)> = sqlx::query_as("SELECT edit_secret FROM sessions WHERE id = ?")
             .bind(&id)
-            .fetch_optional(&pool)
+            .fetch_optional(&state.pool)
             .await
             .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
             
@@ -303,7 +314,7 @@ async fn update_session(
                     .bind(request.tip_percentage)
                     .bind(now)
                     .bind(&id)
-                    .execute(&pool)
+                    .execute(&state.pool)
                     .await
                     .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
                     
@@ -487,7 +498,16 @@ struct AiTextRequest {
     text: String,
 }
 
-async fn process_ai_text(Json(request): Json<AiTextRequest>) -> impl IntoResponse {
+async fn process_ai_text(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(request): Json<AiTextRequest>
+) -> impl IntoResponse {
+    let request_id = headers.get("X-Request-ID").and_then(|h| h.to_str().ok().map(|s| s.to_string()));
+    if let Err(e) = check_request_id(&state, request_id).await {
+        return e.into_response();
+    }
+
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
     if api_key.is_empty() {
         return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not set").into_response();
@@ -499,7 +519,16 @@ async fn process_ai_text(Json(request): Json<AiTextRequest>) -> impl IntoRespons
     }
 }
 
-async fn process_ai_image(mut multipart: Multipart) -> impl IntoResponse {
+async fn process_ai_image(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    mut multipart: Multipart
+) -> impl IntoResponse {
+    let request_id = headers.get("X-Request-ID").and_then(|h| h.to_str().ok().map(|s| s.to_string()));
+    if let Err(e) = check_request_id(&state, request_id).await {
+        return e.into_response();
+    }
+
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
     if api_key.is_empty() {
         return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not set").into_response();
@@ -544,4 +573,24 @@ async fn send_email_handler(Json(payload): Json<SendEmailRequest>) -> impl IntoR
         Ok(_) => axum::http::StatusCode::OK.into_response(),
         Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
+}
+
+async fn check_request_id(
+    state: &AppState,
+    request_id: Option<String>,
+) -> Result<(), (axum::http::StatusCode, String)> {
+    if let Some(id) = request_id {
+        let mut cache = state.processed_requests.lock().await;
+        
+        // Cleanup expired entries (older than 5 minutes)
+        let now = Utc::now();
+        cache.retain(|_, timestamp| *timestamp > now - chrono::Duration::minutes(5));
+        
+        if cache.contains_key(&id) {
+            return Err((axum::http::StatusCode::CONFLICT, "Duplicate request".to_string()));
+        }
+        
+        cache.insert(id, now);
+    }
+    Ok(())
 }
