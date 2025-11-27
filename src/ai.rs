@@ -131,6 +131,7 @@ impl AiProvider for OpenAiProvider {
             Extract a list of expenses from the text. \
             For each expense, identify the person's name, a description of what they paid for, the amount spent, and any tip amount if specified. \
             Also detect if the person is 'sponsoring' the amount (paying for everyone without expecting repayment). \
+            Vietnamese terms like 'tài trợ', 'bao', 'mời', 'sponsor' indicate sponsoring. (e.g. Anh sponsor 500k, it means Anh is paying 500k for everyone, spent will be 0, sponsor will be 500k) \
             Also detect if there is a general 'fund', 'deposit', or 'quỹ' mentioned (amount available to cover expenses). \
             Handle Vietnamese terms like 'trả' (paid), 'mua' (bought), 'tiền' (money), 'k' (thousand, e.g. 50k = 50000), 'tài trợ' (sponsor), 'bao' (treat/sponsor), 'mời' (treat), 'quỹ' (fund), 'đóng quỹ' (deposit). \
             Output JSON matching the schema: { \"expenses\": [ { \"name\": string, \"description\": string, \"amount_spent\": number, \"tip\": number, \"is_sponsor\": boolean, \"sponsor_amount\": number } ], \"fund_amount\": number (optional) }. \
