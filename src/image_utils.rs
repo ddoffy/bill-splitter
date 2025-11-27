@@ -1,8 +1,8 @@
 use image::{GenericImageView, ImageFormat};
 use std::io::Cursor;
 
-const MAX_SIZE_BYTES: usize = 1024 * 1024; // 1 MiB
-const TARGET_MAX_DIMENSION: u32 = 1500;
+const MAX_SIZE_BYTES: usize = 200 * 1024; // 200 KiB
+const TARGET_MAX_DIMENSION: u32 = 1024;
 
 pub fn optimize_image(data: &[u8], content_type: &str) -> Result<(Vec<u8>, String), String> {
     // If image is already smaller than limit, return as is
@@ -35,7 +35,7 @@ pub fn optimize_image(data: &[u8], content_type: &str) -> Result<(Vec<u8>, Strin
     let mut cursor = Cursor::new(&mut buffer);
     
     // Convert to JPEG for best compression/quality ratio for receipts
-    // This usually results in < 500KB for 1500px images
+    // This usually results in < 200KB for 1024px images
     new_img.write_to(&mut cursor, ImageFormat::Jpeg)
         .map_err(|e| format!("Failed to write optimized image: {}", e))?;
 
