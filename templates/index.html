@@ -118,6 +118,11 @@
                     <!-- Image Tab -->
                     <div id="tab-image" class="tab-content" style="display: none;">
                         <div class="form-group">
+                            <label for="imagePersonName">Name:</label>
+                            <input type="text" id="imagePersonName" placeholder="Who paid?" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
                             <label style="display: block; margin-bottom: 10px;">Upload Receipt Image</label>
                             <div style="border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; background: #f7fafc;">
                                 <input type="file" id="receiptImage" accept="image/*" style="display: none;" onchange="handleImageSelect(this)">
@@ -125,6 +130,19 @@
                                 <div id="imageFileName" style="color: #718096; font-size: 0.9em;">No file selected</div>
                             </div>
                         </div>
+
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="imageHasExpenseTip">
+                                Tip/Tax on spent
+                            </label>
+                        </div>
+
+                        <div class="form-group" id="imageExpenseTipGroup" style="display: none;">
+                            <label for="imageExpenseTipPercentage">Tip/Tax Percentage (%):</label>
+                            <input type="text" id="imageExpenseTipPercentage" inputmode="decimal" placeholder="10">
+                        </div>
+
                         <button onclick="processImage()" class="btn btn-primary" id="processImageBtn" disabled style="width: 100%; opacity: 0.5;">Process Receipt</button>
                         <div id="imageLoading" style="display: none; margin-top: 15px; text-align: center; color: #4299e1;">
                             Processing image with AI... <span class="loading-dots">...</span>
@@ -134,9 +152,27 @@
                     <!-- Text Tab -->
                     <div id="tab-text" class="tab-content" style="display: none;">
                         <div class="form-group">
+                            <label for="textPersonName">Name:</label>
+                            <input type="text" id="textPersonName" placeholder="Who paid?" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
                             <label for="receiptText">Paste Receipt Text</label>
                             <textarea id="receiptText" rows="8" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: monospace; font-size: 0.9em;" placeholder="Paste the text content of the receipt here..."></textarea>
                         </div>
+
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="textHasExpenseTip">
+                                Tip/Tax on spent
+                            </label>
+                        </div>
+
+                        <div class="form-group" id="textExpenseTipGroup" style="display: none;">
+                            <label for="textExpenseTipPercentage">Tip/Tax Percentage (%):</label>
+                            <input type="text" id="textExpenseTipPercentage" inputmode="decimal" placeholder="10">
+                        </div>
+
                         <button onclick="processText()" class="btn btn-primary" style="width: 100%;">Process Text</button>
                         <div id="textLoading" style="display: none; margin-top: 15px; text-align: center; color: #4299e1;">
                             Processing text with AI... <span class="loading-dots">...</span>

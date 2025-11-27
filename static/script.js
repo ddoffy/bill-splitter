@@ -41,6 +41,18 @@ const tipPercentageInput = document.getElementById('tipPercentage');
 const exportBtn = document.getElementById('exportBtn');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 
+// New DOM elements for Image Tab
+const imagePersonNameInput = document.getElementById('imagePersonName');
+const imageHasExpenseTipCheckbox = document.getElementById('imageHasExpenseTip');
+const imageExpenseTipGroup = document.getElementById('imageExpenseTipGroup');
+const imageExpenseTipPercentageInput = document.getElementById('imageExpenseTipPercentage');
+
+// New DOM elements for Text Tab
+const textPersonNameInput = document.getElementById('textPersonName');
+const textHasExpenseTipCheckbox = document.getElementById('textHasExpenseTip');
+const textExpenseTipGroup = document.getElementById('textExpenseTipGroup');
+const textExpenseTipPercentageInput = document.getElementById('textExpenseTipPercentage');
+
 // Event listeners
 addPersonForm.addEventListener('submit', handleAddPerson);
 calculateBtn.addEventListener('click', calculateSplit);
@@ -1148,6 +1160,13 @@ async function processText() {
     const loading = document.getElementById('textLoading');
     loading.style.display = 'block';
 
+    // Get extra info
+    const payerName = textPersonNameInput.value.trim() || "Unknown";
+    let tipPercentage = 0;
+    if (textHasExpenseTipCheckbox.checked) {
+        tipPercentage = parseFloat(textExpenseTipPercentageInput.value) || 0;
+    }
+
     try {
         const response = await fetch('/api/ai/text', {
             method: 'POST',
@@ -1158,7 +1177,7 @@ async function processText() {
         if (!response.ok) throw new Error('Failed to process text');
 
         const data = await response.json();
-        populateFormFromAi(data);
+        populateFormFromAi(data, payerName, tipPercentage);
         switchTab('manual');
     } catch (error) {
         console.error(error);
@@ -1179,6 +1198,13 @@ async function processImage() {
     const loading = document.getElementById('imageLoading');
     loading.style.display = 'block';
 
+    // Get extra info
+    const payerName = imagePersonNameInput.value.trim() || "Unknown";
+    let tipPercentage = 0;
+    if (imageHasExpenseTipCheckbox.checked) {
+        tipPercentage = parseFloat(imageExpenseTipPercentageInput.value) || 0;
+    }
+
     const formData = new FormData();
     formData.append('image', input.files[0]);
 
@@ -1191,7 +1217,7 @@ async function processImage() {
         if (!response.ok) throw new Error('Failed to process image');
 
         const data = await response.json();
-        populateFormFromAi(data);
+        populateFormFromAi(data, payerName, tipPercentage);
         switchTab('manual');
     } catch (error) {
         console.error(error);
@@ -1202,27 +1228,78 @@ async function processImage() {
 }
 
 // Populate form with AI data
-function populateFormFromAi(data) {
-    if (data.description) descriptionInput.value = data.description;
-    if (data.amount) amountSpentInput.value = formatMoney(data.amount);
-    
-    // Handle tip
-    if (data.tip && data.amount > 0) {
-        hasExpenseTipCheckbox.checked = true;
-        toggleExpenseTip();
+function populateFormFromAi(data, payerName = "Unknown", tipPercentage = 0) {
+    if (data.items && data.items.length > 0) {
+        // Add items directly to the list
+        data.items.forEach((item, index) => {
+            const tipAmount = item.amount * (tipPercentage / 100);
+            const newPerson = {
+                id: Date.now() + index,
+                name: payerName,
+                description: item.name,
+                amount_spent: item.amount,
+                tip: tipAmount,
+                is_sponsor: false,
+                sponsor_amount: 0,
+                is_receiver: false
+            };
+            people.push(newPerson);
+        });
         
-        // Calculate percentage
-        const percentage = (data.tip / data.amount) * 100;
-        if (expenseTipPercentageInput) {
-            expenseTipPercentageInput.value = parseFloat(percentage.toFixed(2));
+        savePeople();
+        alert(`Added ${data.items.length} items from receipt.`);
+    } else {
+        if (data.description) descriptionInput.value = data.description;
+        if (data.amount) amountSpentInput.value = formatMoney(data.amount);
+        
+        // Set name
+        personNameInput.value = payerName !== "Unknown" ? payerName : "";
+
+        // Handle tip
+        if (tipPercentage > 0) {
+            hasExpenseTipCheckbox.checked = true;
+            toggleExpenseTip();
+            if (expenseTipPercentageInput) {
+                expenseTipPercentageInput.value = tipPercentage;
+            }
+        } else if (data.tip && data.amount > 0) {
+            hasExpenseTipCheckbox.checked = true;
+            toggleExpenseTip();
+            
+            // Calculate percentage
+            const percentage = (data.tip / data.amount) * 100;
+            if (expenseTipPercentageInput) {
+                expenseTipPercentageInput.value = parseFloat(percentage.toFixed(2));
+            }
         }
+        
+        // Focus on name input as it's likely missing
+        if (!personNameInput.value) {
+            personNameInput.focus();
+        }
+        
+        // Show success message
+        alert('Data extracted! Please verify the details and enter the payer name.');
     }
-    
-    // Focus on name input as it's likely missing
-    personNameInput.focus();
-    
-    // Show success message
-    alert('Data extracted! Please verify the details and enter the payer name.');
+}
+
+// Event listeners for new checkboxes
+if (imageHasExpenseTipCheckbox) {
+    imageHasExpenseTipCheckbox.addEventListener('change', function() {
+        imageExpenseTipGroup.style.display = this.checked ? 'block' : 'none';
+        if (this.checked && !imageExpenseTipPercentageInput.value) {
+            imageExpenseTipPercentageInput.value = '10';
+        }
+    });
+}
+
+if (textHasExpenseTipCheckbox) {
+    textHasExpenseTipCheckbox.addEventListener('change', function() {
+        textExpenseTipGroup.style.display = this.checked ? 'block' : 'none';
+        if (this.checked && !textExpenseTipPercentageInput.value) {
+            textExpenseTipPercentageInput.value = '10';
+        }
+    });
 }
 
 

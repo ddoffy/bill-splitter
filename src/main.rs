@@ -490,10 +490,7 @@ async fn process_ai_text(Json(request): Json<AiTextRequest>) -> impl IntoRespons
     }
     let provider = OpenAiProvider::new(api_key);
     match provider.process_text(&request.text).await {
-        Ok(mut data) => {
-            data.amount = data.items.iter().map(|item| item.amount).sum();
-            return Json(data).into_response();
-        },
+        Ok(data) => Json(data).into_response(),
         Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
     }
 }
