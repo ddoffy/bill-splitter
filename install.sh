@@ -27,7 +27,7 @@ if [ -f /etc/systemd/system/split-bills.service ]; then
     sudo systemctl stop split-bills
 fi
 
-sudo cp split-bills.service /etc/systemd/system/
+sudo cp -f split-bills.service /etc/systemd/system/
 
 echo "🔄 Reloading systemd..."
 sudo systemctl daemon-reload
