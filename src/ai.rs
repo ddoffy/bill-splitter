@@ -52,11 +52,17 @@ impl OpenAiProvider {
     }
 
     async fn make_request(&self, messages: Vec<serde_json::Value>) -> Result<ReceiptData, String> {
+        // read temperature from env or default to 0.5
+        let temperature: f64 = std::env::var("OPENAI_API_TEMPERATURE")
+            .unwrap_or_else(|_| "0.5".into())
+            .parse()
+            .unwrap_or(0.5);
+
         let payload = json!({
             "model": self.model,
             "messages": messages,
             "response_format": { "type": "json_object" },
-            "temperature": 0.5
+            "temperature": temperature
         });
 
         let response = self.client

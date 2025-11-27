@@ -13,6 +13,7 @@ Environment=OPENAI_API_MODEL=gpt-4o
 Environment=OPENAI_API_KEY=sk-YOUR_KEY_HERE
 Environment=RESEND_API_KEY=your_resend_key_here
 Environment=RESEND_FROM_EMAIL=your_from_email_here
+Environment=OPENAI_API_TEMPERATURE=1
 
 [Install]
 WantedBy=multi-user.target
