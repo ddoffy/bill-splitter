@@ -19,6 +19,7 @@ mod ai;
 use ai::{AiProvider, OpenAiProvider};
 
 mod email;
+mod image_utils;
 
 
 #[derive(Template)]
@@ -541,8 +542,17 @@ async fn process_ai_image(
             
             match field.bytes().await {
                 Ok(data) => {
+                    // Optimize image if needed
+                    let (optimized_data, optimized_content_type) = match image_utils::optimize_image(&data, &content_type) {
+                        Ok(result) => result,
+                        Err(e) => {
+                            tracing::warn!("Image optimization failed: {}, using original", e);
+                            (data.to_vec(), content_type)
+                        }
+                    };
+
                     let provider = OpenAiProvider::new(api_key);
-                    match provider.process_image(&data, &content_type).await {
+                    match provider.process_image(&optimized_data, &optimized_content_type).await {
                         Ok(data) => return Json(data).into_response(),
                         Err(e) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
                     }
