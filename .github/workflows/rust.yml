@@ -59,3 +59,17 @@ jobs:
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         cat test-results.txt >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Deploy to server
+      if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        port: ${{ secrets.DEPLOY_PORT || 22 }}
+        script: |
+          cd ${{ vars.DEPLOY_PATH || '/opt/split-bills' }}
+          git pull origin main
+          chmod +x deploy.sh
+          ./deploy.sh
