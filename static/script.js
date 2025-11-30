@@ -40,6 +40,7 @@ const tipAmountGroup = document.getElementById('tipAmountGroup');
 const tipPercentageInput = document.getElementById('tipPercentage');
 const exportBtn = document.getElementById('exportBtn');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
+const paidBySelect = document.getElementById('paidBy');
 
 // New DOM elements for Image Tab
 const imagePersonNameInput = document.getElementById('imagePersonName');
@@ -263,6 +264,7 @@ async function loadSession(id) {
                 toggleTipAmount();
             }
             renderPeople(people);
+            updatePaidByDropdown();
         } else {
             alert('Session not found! Loading local data instead.');
             loadPeopleFromLocalStorage();
@@ -297,10 +299,12 @@ function loadPeopleFromLocalStorage() {
         }
         
         renderPeople(people);
+        updatePaidByDropdown();
     } catch (error) {
         console.error('Error loading people from local storage:', error);
         people = [];
         renderPeople(people);
+        updatePaidByDropdown();
     }
 }
 
@@ -406,6 +410,7 @@ function handleAddPerson(e) {
     if (name && amount >= 0) {
         if (editingPersonId) {
             // Update existing person
+            const paidBy = paidBySelect && paidBySelect.value ? paidBySelect.value : null;
             people = people.map(p => {
                 if (p.id === editingPersonId) {
                     return {
@@ -415,7 +420,8 @@ function handleAddPerson(e) {
                         amount_spent: amount,
                         tip: tip,
                         is_sponsor: isSponsor,
-                        sponsor_amount: sponsorAmount
+                        sponsor_amount: sponsorAmount,
+                        paid_by: paidBy
                     };
                 }
                 return p;
@@ -425,6 +431,7 @@ function handleAddPerson(e) {
             cancelEdit();
         } else {
             // Add new person
+            const paidBy = paidBySelect && paidBySelect.value ? paidBySelect.value : null;
             const newPerson = {
                 id: Date.now(),
                 name,
@@ -433,7 +440,8 @@ function handleAddPerson(e) {
                 tip: tip,
                 is_sponsor: isSponsor,
                 sponsor_amount: sponsorAmount,
-                is_receiver: false
+                is_receiver: false,
+                paid_by: paidBy
             };
 
             people.push(newPerson);
@@ -450,12 +458,14 @@ function handleAddPerson(e) {
             isSponsorCheckbox.checked = false;
             sponsorAmountInput.value = '0';
             toggleSponsorAmount();
+            if (paidBySelect) paidBySelect.value = '';
             
             // Focus back on name input for quick entry
             personNameInput.focus();
         }
         
         savePeople();
+        updatePaidByDropdown();
         
         // Hide results when modifying list
         resultsSection.style.display = 'none';
@@ -489,6 +499,10 @@ function editPerson(id) {
     isSponsorCheckbox.checked = person.is_sponsor;
     sponsorAmountInput.value = formatMoney(person.sponsor_amount);
     
+    if (paidBySelect) {
+        paidBySelect.value = person.paid_by || '';
+    }
+    
     toggleSponsorAmount();
     
     // Update UI for edit mode
@@ -518,6 +532,7 @@ function cancelEdit() {
     isSponsorCheckbox.checked = false;
     sponsorAmountInput.value = '0';
     toggleSponsorAmount();
+    if (paidBySelect) paidBySelect.value = '';
     
     // Reset UI
     submitBtn.textContent = 'Add Person';
@@ -598,6 +613,7 @@ function renderPeople(people) {
                     ` : ''}
                 </div>
                 ${person.is_sponsor && person.sponsor_amount > 0 ? `<div class="person-amount">Sponsoring: $${formatMoney(person.sponsor_amount)}</div>` : ''}
+                ${person.paid_by ? `<div style="font-size: 0.85em; color: #2b6cb0; margin-top: 5px;">💳 Will be paid by: <strong>${person.paid_by}</strong></div>` : ''}
                 <div class="receiver-option">
                     <label style="font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 5px; margin-top: 5px;">
                         <input type="radio" name="receiver_group" 
@@ -650,6 +666,22 @@ function renderParticipants(people) {
             <span style="font-weight: 600; font-size: 1.05em;">${name}</span>
         </div>
     `).join('');
+}
+
+// Update paid by dropdown with current participants
+function updatePaidByDropdown() {
+    if (!paidBySelect) return;
+    
+    const uniqueNames = [...new Set(people.map(p => p.name))].sort();
+    const currentValue = paidBySelect.value;
+    
+    paidBySelect.innerHTML = '<option value="">-- Self (person above) --</option>' +
+        uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
+    
+    // Restore selection if still valid
+    if (currentValue && uniqueNames.includes(currentValue)) {
+        paidBySelect.value = currentValue;
+    }
 }
 
 // Set receiver
@@ -1224,7 +1256,8 @@ async function processAiSplit() {
                     tip: parseFloat(expense.tip) || 0,
                     is_sponsor: expense.is_sponsor || false,
                     sponsor_amount: parseFloat(expense.sponsor_amount) || 0,
-                    is_receiver: false
+                    is_receiver: false,
+                    paid_by: null
                 };
                 people.push(person);
                 count++;
@@ -1366,7 +1399,8 @@ function populateFormFromAi(data, payerName = "Unknown", tipPercentage = 0) {
                 tip: tipAmount,
                 is_sponsor: false,
                 sponsor_amount: 0,
-                is_receiver: false
+                is_receiver: false,
+                paid_by: null
             };
             people.push(newPerson);
         });

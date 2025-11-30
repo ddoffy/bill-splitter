@@ -38,6 +38,8 @@ struct Person {
     sponsor_amount: f64,
     #[serde(default)]
     is_receiver: bool,
+    #[serde(default)]
+    paid_by: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
@@ -346,6 +348,9 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         sponsor_amount: f64,
         is_sponsor: bool,
         is_receiver: bool,
+        will_pay_for_others: f64,  // Amount they will pay for others (not themselves)
+        amount_paid_by_others: f64, // Amount that others will pay for them
+        delegated_self: f64, // Amount they marked as paid_by themselves (private expense)
     }
 
     let mut grouped_people: HashMap<String, PersonSummary> = HashMap::new();
@@ -358,16 +363,52 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
             sponsor_amount: 0.0,
             is_sponsor: false,
             is_receiver: false,
+            will_pay_for_others: 0.0,
+            amount_paid_by_others: 0.0,
+            delegated_self: 0.0,
         });
 
-        entry.amount_spent += person.amount_spent;
-        entry.tip += person.tip;
+        // Only add to amount_spent if this expense is NOT delegated to someone else
+        // (i.e., the person is paying for it themselves in the normal way)
+        if person.paid_by.is_none() {
+            entry.amount_spent += person.amount_spent;
+            entry.tip += person.tip;
+        }
+        
         entry.sponsor_amount += person.sponsor_amount;
         if person.is_sponsor {
             entry.is_sponsor = true;
         }
         if person.is_receiver {
             entry.is_receiver = true;
+        }
+        
+        // Track expenses with "paid_by" set
+        if let Some(ref payer_name) = person.paid_by {
+            let total_expense = person.amount_spent + person.tip;
+            
+            if payer_name == &person.name {
+                // Self-payment: mark as private expense
+                entry.delegated_self += total_expense;
+            } else {
+                // Someone else is paying for this expense
+                // Add to the current person's "amount_paid_by_others"
+                entry.amount_paid_by_others += total_expense;
+                
+                // Add to the payer's "will_pay_for_others" amount
+                let payer_entry = grouped_people.entry(payer_name.clone()).or_insert(PersonSummary {
+                    name: payer_name.clone(),
+                    amount_spent: 0.0,
+                    tip: 0.0,
+                    sponsor_amount: 0.0,
+                    is_sponsor: false,
+                    is_receiver: false,
+                    will_pay_for_others: 0.0,
+                    amount_paid_by_others: 0.0,
+                    delegated_self: 0.0,
+                });
+                payer_entry.will_pay_for_others += total_expense;
+            }
         }
     }
 
@@ -383,6 +424,10 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     // Total spent with tip = (Base * Global Tax) + Explicit Tips
     // Note: We assume explicit tips are NOT taxed by the global percentage
     let total_spent_with_tip = (total_spent_base * tip_multiplier) + total_explicit_tip;
+    
+    // Calculate all delegated expenses (all expenses with paid_by set, including self-payment)
+    // These should be excluded from the amount to share
+    let all_delegated_expenses: f64 = unique_people.iter().map(|p| p.will_pay_for_others + p.delegated_self).sum();
     
     // Sponsorship is a fixed amount, not affected by tip/tax
     let total_sponsored: f64 = unique_people.iter().map(|p| p.sponsor_amount).sum();
@@ -400,8 +445,9 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     };
     
     // The amount that needs to be shared among participants
+    // Subtract all delegated expenses (including self-payment) because those are private transactions
     // Fund amount is flat cash, so it's subtracted from the total needed
-    let amount_to_share = total_spent_with_tip - effective_total_sponsored - fund_amount;
+    let amount_to_share = total_spent_with_tip - effective_total_sponsored - fund_amount - all_delegated_expenses;
 
     let participants: Vec<&PersonSummary> = if include_sponsor {
         unique_people.iter().collect()
@@ -450,10 +496,16 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
                 0.0
             };
 
-            let total_cost = sponsor_cost + share_cost;
+            // What they should pay: sponsor_cost + share_cost + amount_paid_by_others + delegated_self
+            // delegated_self and amount_paid_by_others are private expenses on top of their share
+            let total_cost = sponsor_cost + share_cost + person.amount_paid_by_others + person.delegated_self;
 
-            // Balance = What they paid (amount_spent + tip_paid) - What they should pay (total_cost)
-            let balance = (person.amount_spent + tip_paid) - total_cost;
+            // Balance calculation:
+            // What they actually paid: (amount_spent - amount_paid_by_others) + tip_paid + will_pay_for_others
+            // Note: delegated_self is already included in amount_spent, so we don't add it again
+            // We subtract amount_paid_by_others from amount_spent to avoid double-counting
+            // What they should pay: total_cost
+            let balance = (person.amount_spent - person.amount_paid_by_others + tip_paid + person.will_pay_for_others) - total_cost;
 
             let settlement_type = if balance > 0.01 {
                 "receive".to_string()

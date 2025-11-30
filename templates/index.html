@@ -109,6 +109,14 @@
                                 <input type="text" id="sponsorAmount" inputmode="decimal" placeholder="0.00">
                             </div>
                             
+                            <div class="form-group">
+                                <label for="paidBy">Who will pay this expense?</label>
+                                <select id="paidBy" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; background-color: white;">
+                                    <option value="">-- Self (person above) --</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 4px;">Select who will actually pay for this expense</small>
+                            </div>
+                            
                             <div style="display: flex; gap: 10px;">
                                 <button type="submit" class="btn btn-primary" id="submitBtn">Add</button>
                                 <button type="button" class="btn" id="cancelEditBtn" style="display: none; background: #718096; color: white;">Cancel</button>
