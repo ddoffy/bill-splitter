@@ -148,9 +148,21 @@ jobs:
         proxy_use_insecure_cipher: true
         command_timeout: 30m
         script: |
+          echo "🔗 Connected to $(hostname) as $(whoami)"
+          echo "📍 Current directory: $(pwd)"
+          echo "🖥️  System info: $(uname -a)"
+          echo ""
+          echo "📂 Navigating to deployment directory..."
           cd ${{ vars.DEPLOY_PATH }}
+          echo "✅ Now in: $(pwd)"
+          echo ""
+          echo "🔄 Pulling latest changes..."
           git stash
           git pull origin main
-          git stash pop
+          git stash pop || true
+          echo ""
+          echo "🚀 Starting deployment..."
           chmod +x deploy.sh
           ./deploy.sh
+          echo ""
+          echo "✅ Deployment completed successfully!"
