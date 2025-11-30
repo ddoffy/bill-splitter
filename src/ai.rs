@@ -11,6 +11,12 @@ use base64::{Engine as _, engine::general_purpose};
 pub struct ReceiptItem {
     pub name: String,
     pub amount: f64,
+    #[serde(default = "default_quantity")]
+    pub quantity: u32,
+}
+
+fn default_quantity() -> u32 {
+    1
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -30,6 +36,8 @@ pub struct AiExpense {
     pub name: String,
     pub description: String,
     pub amount_spent: f64,
+    #[serde(default = "default_quantity")]
+    pub quantity: u32,
     #[serde(default)]
     pub tip: f64,
     #[serde(default)]
@@ -115,7 +123,7 @@ impl OpenAiProvider {
 #[async_trait]
 impl AiProvider for OpenAiProvider {
     async fn process_text(&self, text: &str) -> Result<ReceiptData, String> {
-        let system_prompt = "You are a helpful assistant that extracts receipt data. The text may be in English or Vietnamese. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount).";
+        let system_prompt = "You are a helpful assistant that extracts receipt data. The text may be in English or Vietnamese. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount/quantity where quantity defaults to 1).";
         
         let messages = vec![
             json!({ "role": "system", "content": system_prompt }),
@@ -129,13 +137,13 @@ impl AiProvider for OpenAiProvider {
         let system_prompt = "You are a helpful assistant that parses expense descriptions. \
             The text may be in English, Vietnamese, or a mix of both. \
             Extract a list of expenses from the text. \
-            For each expense, identify the person's name, a description of what they paid for, the amount spent, and any tip amount if specified. \
+            For each expense, identify the person's name, a description of what they paid for, the amount spent, quantity (defaults to 1), and any tip amount if specified. \
             Also detect if the person is 'sponsoring' the amount (paying for everyone without expecting repayment). \
             Vietnamese terms like 'tài trợ', 'bao', 'mời', 'sponsor' indicate sponsoring. (e.g. Anh sponsor 500k, it means Anh is paying 500k for everyone, spent will be 0, sponsor will be 500k) \
             Sometimes the sponsor amount may be different from the amount spent, they flexiblely use 'đ', '$', 'k', 'ngàn', 'vnd' for money unit, so capture both values if possible. \
             Also detect if there is a general 'fund', 'deposit', or 'quỹ' mentioned (amount available to cover expenses). \
             Handle Vietnamese terms like 'trả' (paid), 'mua' (bought), 'tiền' (money), 'k' (thousand, e.g. 50k = 50000), 'tài trợ' (sponsor), 'bao' (treat/sponsor), 'mời' (treat), 'quỹ' (fund), 'đóng quỹ' (deposit). \
-            Output JSON matching the schema: { \"expenses\": [ { \"name\": string, \"description\": string, \"amount_spent\": number, \"tip\": number, \"is_sponsor\": boolean, \"sponsor_amount\": number } ], \"fund_amount\": number (optional) }. \
+            Output JSON matching the schema: { \"expenses\": [ { \"name\": string, \"description\": string, \"amount_spent\": number, \"quantity\": number (defaults to 1), \"tip\": number, \"is_sponsor\": boolean, \"sponsor_amount\": number } ], \"fund_amount\": number (optional) }. \
             If tip is not specified, set it to 0. If description is not clear, use a generic one like 'Expense'. \
             If is_sponsor is true, set sponsor_amount to the amount_spent unless specified otherwise.";
         
@@ -151,7 +159,7 @@ impl AiProvider for OpenAiProvider {
         let base64_image = general_purpose::STANDARD.encode(image_data);
         let data_url = format!("data:{};base64,{}", mime_type, base64_image);
 
-        let system_prompt = "You are a helpful assistant that extracts receipt data from images. The receipt may be in English or Vietnamese. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount).";
+                let system_prompt = "You are a helpful assistant that extracts receipt data from images. The receipt may be in English or Vietnamese. Output JSON matching the schema: description, amount (total), tip (optional), date (YYYY-MM-DD), and items (list of name/amount/quantity where quantity defaults to 1).";
 
         let messages = vec![
             json!({ "role": "system", "content": system_prompt }),

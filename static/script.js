@@ -12,6 +12,7 @@ const addPersonForm = document.getElementById('addPersonForm');
 const personNameInput = document.getElementById('personName');
 const descriptionInput = document.getElementById('description');
 const amountSpentInput = document.getElementById('amountSpent');
+const quantityInput = document.getElementById('quantity');
 const expenseTipPercentageInput = document.getElementById('expenseTipPercentage');
 const hasExpenseTipCheckbox = document.getElementById('hasExpenseTip');
 const expenseTipGroup = document.getElementById('expenseTipGroup');
@@ -399,6 +400,7 @@ function handleAddPerson(e) {
     const name = personNameInput.value.trim();
     const description = descriptionInput.value.trim();
     const amount = parseFloat(amountSpentInput.value.replace(/,/g, ''));
+    const quantity = parseInt(quantityInput.value) || 1;
     let tip = 0;
     if (hasExpenseTipCheckbox && hasExpenseTipCheckbox.checked && expenseTipPercentageInput) {
         const percentage = parseFloat(expenseTipPercentageInput.value) || 0;
@@ -418,6 +420,7 @@ function handleAddPerson(e) {
                         name,
                         description,
                         amount_spent: amount,
+                        quantity: quantity,
                         tip: tip,
                         is_sponsor: isSponsor,
                         sponsor_amount: sponsorAmount,
@@ -437,6 +440,7 @@ function handleAddPerson(e) {
                 name,
                 description,
                 amount_spent: amount,
+                quantity: quantity,
                 tip: tip,
                 is_sponsor: isSponsor,
                 sponsor_amount: sponsorAmount,
@@ -450,6 +454,7 @@ function handleAddPerson(e) {
             personNameInput.value = '';
             descriptionInput.value = '';
             amountSpentInput.value = '0';
+            quantityInput.value = '1';
             if (expenseTipPercentageInput) expenseTipPercentageInput.value = '';
             if (hasExpenseTipCheckbox) {
                 hasExpenseTipCheckbox.checked = false;
@@ -485,6 +490,7 @@ function editPerson(id) {
     personNameInput.value = person.name;
     descriptionInput.value = person.description || '';
     amountSpentInput.value = formatMoney(person.amount_spent);
+    quantityInput.value = person.quantity || 1;
     
     if (hasExpenseTipCheckbox) {
         hasExpenseTipCheckbox.checked = !!person.tip && person.tip > 0;
@@ -524,6 +530,7 @@ function cancelEdit() {
     personNameInput.value = '';
     descriptionInput.value = '';
     amountSpentInput.value = '0';
+    quantityInput.value = '1';
     if (expenseTipPercentageInput) expenseTipPercentageInput.value = '';
     if (hasExpenseTipCheckbox) {
         hasExpenseTipCheckbox.checked = false;
@@ -600,7 +607,7 @@ function renderPeople(people) {
                 </div>
                 ${person.description ? `<div class="person-description">${person.description}</div>` : ''}
                 <div class="person-amount">
-                    Spent: $${formatMoney(person.amount_spent)}
+                    Spent: $${formatMoney(person.amount_spent)}${person.quantity && person.quantity > 1 ? ` × ${person.quantity} = $${formatMoney(person.amount_spent * person.quantity)}` : ''}
                     ${person.tip > 0 ? `
                         <br>
                         <span style="font-size: 0.9em; color: #666;">
@@ -1253,6 +1260,7 @@ async function processAiSplit() {
                     name: expense.name || "Unknown",
                     description: expense.description || "Expense",
                     amount_spent: parseFloat(expense.amount_spent) || 0,
+                    quantity: parseInt(expense.quantity) || 1,
                     tip: parseFloat(expense.tip) || 0,
                     is_sponsor: expense.is_sponsor || false,
                     sponsor_amount: parseFloat(expense.sponsor_amount) || 0,
@@ -1396,6 +1404,7 @@ function populateFormFromAi(data, payerName = "Unknown", tipPercentage = 0) {
                 name: payerName,
                 description: item.name,
                 amount_spent: item.amount,
+                quantity: item.quantity || 1,
                 tip: tipAmount,
                 is_sponsor: false,
                 sponsor_amount: 0,

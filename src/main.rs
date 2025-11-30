@@ -28,12 +28,18 @@ struct IndexTemplate {
     base_url: String,
 }
 
+fn default_quantity() -> u32 {
+    1
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Person {
     id: u64,
     name: String,
     description: String,
     amount_spent: f64,
+    #[serde(default = "default_quantity")]
+    quantity: u32,
     #[serde(default)]
     tip: f64,
     is_sponsor: bool,
