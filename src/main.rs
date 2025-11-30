@@ -503,16 +503,17 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
                 0.0
             };
 
-            // What they should pay: sponsor_cost + share_cost + delegated_self + owes_to_others
+            // What they should pay: sponsor_cost + share_cost + delegated_self
             // delegated_self is their private expense
-            // owes_to_others is reimbursements they owe to people
-            let total_cost = sponsor_cost + share_cost + person.delegated_self + person.owes_to_others;
+            let total_cost = sponsor_cost + share_cost + person.delegated_self;
 
             // Balance calculation:
-            // What they actually paid: amount_spent + tip_paid + will_receive_from_others
-            // will_receive_from_others adds to what they paid (they'll be reimbursed)
-            // What they should pay: total_cost
-            let balance = (person.amount_spent + tip_paid + person.will_receive_from_others) - total_cost;
+            // What they paid out of pocket: amount_spent + tip_paid
+            // Minus what they'll get back: will_receive_from_others
+            // Plus what they owe to others: owes_to_others
+            // Net payment: (amount_spent + tip_paid) - will_receive_from_others + owes_to_others
+            // Balance = Net payment - What they should pay
+            let balance = (person.amount_spent + tip_paid - person.will_receive_from_others + person.owes_to_others) - total_cost;
 
             let settlement_type = if balance > 0.01 {
                 "receive".to_string()
