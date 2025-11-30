@@ -60,6 +60,17 @@ jobs:
         cat test-results.txt >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
     
+    - name: Setup Cloudflare Tunnel
+      if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+      run: |
+        curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+        sudo dpkg -i cloudflared.deb
+        mkdir -p ~/.ssh
+        cat > ~/.ssh/config << EOF
+        Host ${{ secrets.DEPLOY_HOST }}
+          ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+        EOF
+    
     - name: Deploy to server
       if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
       uses: appleboy/ssh-action@v1.0.3
@@ -68,8 +79,11 @@ jobs:
         username: ${{ secrets.DEPLOY_USER }}
         key: ${{ secrets.DEPLOY_SSH_KEY }}
         port: ${{ secrets.DEPLOY_PORT || 22 }}
+        proxy_use_insecure_cipher: true
         script: |
           cd ${{ vars.DEPLOY_PATH || '/opt/split-bills' }}
+          git stash
           git pull origin main
+          git stash pop
           chmod +x deploy.sh
           ./deploy.sh
