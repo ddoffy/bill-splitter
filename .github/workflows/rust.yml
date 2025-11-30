@@ -11,7 +11,6 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -43,8 +42,47 @@ jobs:
     
     - name: Build
       run: cargo build --verbose
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: target/debug/split-bills
+        retention-days: 1
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+    
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-index-
+    
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-target-
+    
     - name: Run tests
       run: cargo test --verbose --no-fail-fast -- --test-threads=1 --show-output | tee test-results.txt
+    
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
@@ -52,6 +90,7 @@ jobs:
         name: test-results
         path: test-results.txt
         retention-days: 30
+    
     - name: Generate test summary
       if: always()
       run: |
@@ -59,9 +98,16 @@ jobs:
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         cat test-results.txt >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
     
     - name: Setup Cloudflare Tunnel
-      if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
       run: |
         curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
         sudo dpkg -i cloudflared.deb
@@ -72,7 +118,6 @@ jobs:
         EOF
     
     - name: Deploy to server
-      if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.DEPLOY_HOST }}
