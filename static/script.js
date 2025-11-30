@@ -1541,51 +1541,67 @@ async function sendEmail() {
 
 function generateEmailHtml(result) {
     let html = `
-        <h2>Split Bills Results</h2>
-        <p><strong>Total Spent:</strong> $${formatMoney(result.total_spent)}</p>
-        <p><strong>Total Sponsored:</strong> $${formatMoney(result.total_sponsored)}</p>
-        <p><strong>Amount to Share:</strong> $${formatMoney(result.amount_to_share)}</p>
-        <p><strong>Per Person Share:</strong> $${formatMoney(result.per_person_share)}</p>
-        
-        <h3>Settlements</h3>
-        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-            <thead>
-                <tr style="background-color: #f2f2f2;">
-                    <th style="text-align: left;">Person</th>
-                    <th style="text-align: right;">Paid</th>
-                    <th style="text-align: right;">Share</th>
-                    <th style="text-align: right;">Balance</th>
-                    <th style="text-align: left;">Action</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+            <h2 style="color: #2c5282;">Split Bills Results</h2>
+            
+            <h3 style="color: #2d3748;">Summary</h3>
+            <table style="border-collapse: collapse; margin-bottom: 20px;">
+                <tr><td style="padding: 5px;"><strong>Total Spent:</strong></td><td style="padding: 5px;">$${formatMoney(result.total_spent)}</td></tr>
+                <tr><td style="padding: 5px;"><strong>Total Sponsored:</strong></td><td style="padding: 5px;">$${formatMoney(result.total_sponsored)}</td></tr>
+                ${result.total_tip > 0 ? `<tr><td style="padding: 5px;"><strong>Total Tip/Tax:</strong></td><td style="padding: 5px;">$${formatMoney(result.total_tip)}</td></tr>` : ''}
+                ${result.fund_amount > 0 ? `<tr><td style="padding: 5px;"><strong>Fund Used:</strong></td><td style="padding: 5px;">$${formatMoney(result.fund_amount)}</td></tr>` : ''}
+                <tr><td style="padding: 5px;"><strong>Amount to Share:</strong></td><td style="padding: 5px;">$${formatMoney(result.amount_to_share)}</td></tr>
+                <tr><td style="padding: 5px;"><strong>Number of Participants:</strong></td><td style="padding: 5px;">${result.num_participants}</td></tr>
+                <tr><td style="padding: 5px;"><strong>Per Person Share:</strong></td><td style="padding: 5px;">$${formatMoney(result.per_person_share)}</td></tr>
+            </table>
+            
+            <h3 style="color: #2d3748;">Settlements</h3>
+            <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e0;">
+                <thead>
+                    <tr style="background-color: #edf2f7;">
+                        <th style="text-align: left; padding: 8px; border: 1px solid #cbd5e0;">Name</th>
+                        <th style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">Spent</th>
+                        <th style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">Tip/Tax Paid</th>
+                        <th style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">Sponsor Cost</th>
+                        <th style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">Share Cost</th>
+                        <th style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">Balance</th>
+                        <th style="text-align: left; padding: 8px; border: 1px solid #cbd5e0;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
     `;
 
     result.settlements.forEach(s => {
         let action = "";
+        let bgColor = "#ffffff";
         if (s.settlement_type === 'pay') {
             action = `Pay <strong>$${formatMoney(Math.abs(s.balance))}</strong>`;
+            bgColor = "#fed7d7";
         } else if (s.settlement_type === 'receive') {
             action = `Receive <strong>$${formatMoney(s.balance)}</strong>`;
+            bgColor = "#c6f6d5";
         } else {
             action = "Settled";
         }
 
         html += `
             <tr>
-                <td>${s.name}</td>
-                <td style="text-align: right;">$${formatMoney(s.amount_spent)}</td>
-                <td style="text-align: right;">$${formatMoney(s.share_cost)}</td>
-                <td style="text-align: right; color: ${s.balance >= 0 ? 'green' : 'red'}">$${formatMoney(s.balance)}</td>
-                <td>${action}</td>
+                <td style="padding: 8px; border: 1px solid #cbd5e0;">${s.name}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">$${formatMoney(s.amount_spent)}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">$${formatMoney(s.tip_paid)}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">$${formatMoney(s.sponsor_cost)}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #cbd5e0;">$${formatMoney(s.share_cost)}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #cbd5e0; background-color: ${bgColor}; font-weight: bold;">$${formatMoney(s.balance)}</td>
+                <td style="padding: 8px; border: 1px solid #cbd5e0; background-color: ${bgColor};">${action}</td>
             </tr>
         `;
     });
 
     html += `
-            </tbody>
-        </table>
-        <p><small>Generated by Split Bills</small></p>
+                </tbody>
+            </table>
+            <p style="margin-top: 20px; color: #718096; font-size: 12px;"><em>Generated by Split Bills</em></p>
+        </div>
     `;
     
     return html;
