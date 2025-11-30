@@ -1,0 +1,89 @@
+name: Create Release
+
+on:
+  push:
+    branches:
+      - 'release/*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Extract version from branch name
+      id: extract_version
+      run: |
+        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+        VERSION="${BRANCH_NAME#release/}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+    
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-index-
+    
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-release-
+    
+    - name: Build release binary
+      run: cargo build --release --verbose
+    
+    - name: Run tests
+      run: cargo test --release --verbose
+    
+    - name: Create release archive
+      run: |
+        mkdir -p release-artifacts
+        cp target/release/split-bills release-artifacts/
+        cp README.md release-artifacts/ 2>/dev/null || true
+        cp LICENSE release-artifacts/ 2>/dev/null || true
+        cd release-artifacts
+        tar -czf split-bills-${{ steps.extract_version.outputs.version }}-linux-x86_64.tar.gz *
+        cd ..
+        mv release-artifacts/split-bills-${{ steps.extract_version.outputs.version }}-linux-x86_64.tar.gz .
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        echo "## What's Changed" > CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD >> CHANGELOG.md 2>/dev/null || echo "- Initial release" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)...${{ steps.extract_version.outputs.tag }}" >> CHANGELOG.md 2>/dev/null || true
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.extract_version.outputs.tag }}
+        name: Release ${{ steps.extract_version.outputs.version }}
+        body_path: CHANGELOG.md
+        draft: false
+        prerelease: false
+        files: |
+          split-bills-${{ steps.extract_version.outputs.version }}-linux-x86_64.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
