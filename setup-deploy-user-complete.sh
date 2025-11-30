@@ -34,10 +34,30 @@ echo "✓ SSH directory configured"
 
 # Add SSH public key (you'll need to paste it when prompted)
 echo ""
-echo "📋 Paste the SSH PUBLIC KEY that will be used for deployment:"
-echo "   (This is the public key pair of DEPLOY_SSH_KEY secret)"
-echo "   Generate with: ssh-keygen -t ed25519 -C 'github-actions-deploy'"
-read -r SSH_PUBLIC_KEY
+echo "📋 SSH Key Setup"
+echo "   Option 1: Paste the SSH PUBLIC KEY directly"
+echo "   Option 2: Provide path to public key file"
+echo ""
+echo "Choose option (1 or 2):"
+read -r KEY_OPTION
+
+if [ "$KEY_OPTION" = "2" ]; then
+    echo "Enter the path to your public key file:"
+    read -r KEY_PATH
+    
+    if [ -f "$KEY_PATH" ]; then
+        SSH_PUBLIC_KEY=$(cat "$KEY_PATH")
+        echo "✓ Public key loaded from $KEY_PATH"
+    else
+        echo "⚠️  File not found: $KEY_PATH"
+        echo "Enter the SSH PUBLIC KEY manually:"
+        read -r SSH_PUBLIC_KEY
+    fi
+else
+    echo "Paste the SSH PUBLIC KEY:"
+    echo "   (Generate with: ssh-keygen -t ed25519 -C 'github-actions-deploy')"
+    read -r SSH_PUBLIC_KEY
+fi
 
 if [ -n "$SSH_PUBLIC_KEY" ]; then
     echo "$SSH_PUBLIC_KEY" | sudo tee -a "$DEPLOY_HOME/.ssh/authorized_keys" > /dev/null
