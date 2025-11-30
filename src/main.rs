@@ -506,16 +506,17 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
                 0.0
             };
 
-            // What they should pay: sponsor_cost + share_cost + amount_paid_by_others + delegated_self
-            // delegated_self and amount_paid_by_others are private expenses on top of their share
-            let total_cost = sponsor_cost + share_cost + person.amount_paid_by_others + person.delegated_self;
+            // What they should pay: sponsor_cost + share_cost + delegated_self
+            // amount_paid_by_others is NOT included because someone else is paying it
+            // delegated_self IS included because they marked it as their own private expense
+            let total_cost = sponsor_cost + share_cost + person.delegated_self;
 
             // Balance calculation:
-            // What they actually paid: (amount_spent - amount_paid_by_others) + tip_paid + will_pay_for_others
-            // Note: delegated_self is already included in amount_spent, so we don't add it again
-            // We subtract amount_paid_by_others from amount_spent to avoid double-counting
+            // What they actually paid: amount_spent + tip_paid + will_pay_for_others
+            // We don't subtract amount_paid_by_others here because it's not in amount_spent
+            // (we already excluded it when aggregating)
             // What they should pay: total_cost
-            let balance = (person.amount_spent - person.amount_paid_by_others + tip_paid + person.will_pay_for_others) - total_cost;
+            let balance = (person.amount_spent + tip_paid + person.will_pay_for_others) - total_cost;
 
             let settlement_type = if balance > 0.01 {
                 "receive".to_string()
