@@ -400,11 +400,13 @@ function handleAddPerson(e) {
     const name = personNameInput.value.trim();
     const description = descriptionInput.value.trim();
     const amount = parseFloat(amountSpentInput.value.replace(/,/g, ''));
-    const quantity = parseInt(quantityInput.value) || 1;
+    const quantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
     let tip = 0;
     if (hasExpenseTipCheckbox && hasExpenseTipCheckbox.checked && expenseTipPercentageInput) {
         const percentage = parseFloat(expenseTipPercentageInput.value) || 0;
-        tip = (amount * quantity) * (percentage / 100);
+        const totalAmount = amount * quantity;
+        tip = totalAmount * (percentage / 100);
+        console.log(`Tip calculation: amount=${amount}, quantity=${quantity}, totalAmount=${totalAmount}, percentage=${percentage}, tip=${tip}`);
     }
     const isSponsor = isSponsorCheckbox.checked;
     const sponsorAmount = isSponsor ? parseFloat(sponsorAmountInput.value.replace(/,/g, '')) : 0;
