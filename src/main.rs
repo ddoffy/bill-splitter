@@ -381,7 +381,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         // Only add to amount_spent if this expense is NOT delegated to someone else
         // (i.e., the person is paying for it themselves in the normal way)
         if person.paid_by.is_none() {
-            entry.amount_spent += person.amount_spent;
+            entry.amount_spent += person.amount_spent * person.quantity as f64;
             entry.tip += person.tip;
         }
         
@@ -395,7 +395,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         
         // Track expenses with "paid_by" set
         if let Some(ref payer_name) = person.paid_by {
-            let total_expense = person.amount_spent + person.tip;
+            let total_expense = (person.amount_spent * person.quantity as f64) + person.tip;
             
             if payer_name == &person.name {
                 // Self-payment: mark as private expense

@@ -578,7 +578,10 @@ function renderPeople(people) {
     if (people) {
         if (expensesCount) expensesCount.textContent = `(${people.length})`;
         
-        const total = people.reduce((sum, p) => sum + (p.amount_spent || 0) + (p.tip || 0), 0);
+        const total = people.reduce((sum, p) => {
+            const qty = p.quantity || 1;
+            return sum + ((p.amount_spent || 0) * qty) + (p.tip || 0);
+        }, 0);
         const sponsor = people.reduce((sum, p) => sum + (p.is_sponsor ? (p.sponsor_amount || 0) : 0), 0);
         
         if (expensesTotal) expensesTotal.textContent = formatMoney(total);
@@ -607,7 +610,11 @@ function renderPeople(people) {
                 </div>
                 ${person.description ? `<div class="person-description">${person.description}</div>` : ''}
                 <div class="person-amount">
-                    Spent: $${formatMoney(person.amount_spent)}${person.quantity && person.quantity > 1 ? ` × ${person.quantity} = $${formatMoney(person.amount_spent * person.quantity)}` : ''}
+                    ${person.quantity && person.quantity > 1 ? `
+                        Spent: $${formatMoney(person.amount_spent)} × ${person.quantity} = $${formatMoney(person.amount_spent * person.quantity)}
+                    ` : `
+                        Spent: $${formatMoney(person.amount_spent)}
+                    `}
                     ${person.tip > 0 ? `
                         <br>
                         <span style="font-size: 0.9em; color: #666;">
@@ -615,7 +622,12 @@ function renderPeople(people) {
                         </span>
                         <br>
                         <span style="font-weight: bold;">
-                            Final: $${formatMoney(person.amount_spent + person.tip)}
+                            Final: $${formatMoney((person.amount_spent * (person.quantity || 1)) + person.tip)}
+                        </span>
+                    ` : person.quantity && person.quantity > 1 ? `
+                        <br>
+                        <span style="font-weight: bold;">
+                            Final: $${formatMoney(person.amount_spent * person.quantity)}
                         </span>
                     ` : ''}
                 </div>
