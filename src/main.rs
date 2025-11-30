@@ -395,7 +395,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
             let total_expense = (person.amount_spent * person.quantity as f64) + person.tip;
             
             if payer_name == &person.name {
-                // Self-payment: mark as private expense
+                // Self-payment: This is a private expense, exclude from shared pool
                 entry.delegated_self += total_expense;
             } else {
                 // Someone else will reimburse this person for this expense
