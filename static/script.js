@@ -1097,89 +1097,95 @@ function exportToExcel() {
 
     const result = lastCalculationResult;
     
-    // Create HTML content for Excel
+    // Create workbook data
     let html = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-        <!--[if gte mso 9]>
-        <xml>
-            <x:ExcelWorkbook>
-                <x:ExcelWorksheets>
-                    <x:ExcelWorksheet>
-                        <x:Name>Bill Split Results</x:Name>
-                        <x:WorksheetOptions>
-                            <x:DisplayGridlines/>
-                        </x:WorksheetOptions>
-                    </x:ExcelWorksheet>
-                </x:ExcelWorksheets>
-            </x:ExcelWorkbook>
-        </xml>
-        <![endif]-->
-        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
-    </head>
-    <body>
-        <h2>Bill Split Results</h2>
-        
-        <h3>Summary</h3>
-        <table border="1">
-            <tr><td>Total Spent</td><td>${result.total_spent.toFixed(2)}</td></tr>
-            <tr><td>Total Sponsored</td><td>${result.total_sponsored.toFixed(2)}</td></tr>
-            ${result.total_tip > 0 ? `<tr><td>Total Tip/Tax</td><td>${result.total_tip.toFixed(2)}</td></tr>` : ''}
-            ${result.fund_amount > 0 ? `<tr><td>Fund Used</td><td>${result.fund_amount.toFixed(2)}</td></tr>` : ''}
-            <tr><td>Amount to Share</td><td>${result.amount_to_share.toFixed(2)}</td></tr>
-            <tr><td>Number of Participants</td><td>${result.num_participants}</td></tr>
-            <tr><td>Per Person Share</td><td>${result.per_person_share.toFixed(2)}</td></tr>
-        </table>
-        
-        <h3>Settlements</h3>
-        <table border="1">
-            <thead>
-                <tr style="background-color: #f0f0f0; font-weight: bold;">
-                    <th>Name</th>
-                    <th>Spent</th>
-                    <th>Tip/Tax Paid</th>
-                    <th>Sponsor Cost</th>
-                    <th>Share Cost</th>
-                    <th>Balance</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
+<html xmlns:o="urn:schemas-microsoft-com:office:office" 
+      xmlns:x="urn:schemas-microsoft-com:office:excel" 
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+    <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+    <xml>
+        <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                    <x:Name>Bill Split Results</x:Name>
+                    <x:WorksheetOptions>
+                        <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+    </xml>
+    <style>
+        table { border-collapse: collapse; }
+        th, td { border: 1px solid black; padding: 5px; }
+        th { background-color: #f0f0f0; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Bill Split Results</h2>
+    
+    <h3>Summary</h3>
+    <table>
+        <tr><td><b>Total Spent</b></td><td>${result.total_spent.toFixed(2)}</td></tr>
+        <tr><td><b>Total Sponsored</b></td><td>${result.total_sponsored.toFixed(2)}</td></tr>
+        ${result.total_tip > 0 ? `<tr><td><b>Total Tip/Tax</b></td><td>${result.total_tip.toFixed(2)}</td></tr>` : ''}
+        ${result.fund_amount > 0 ? `<tr><td><b>Fund Used</b></td><td>${result.fund_amount.toFixed(2)}</td></tr>` : ''}
+        <tr><td><b>Amount to Share</b></td><td>${result.amount_to_share.toFixed(2)}</td></tr>
+        <tr><td><b>Number of Participants</b></td><td>${result.num_participants}</td></tr>
+        <tr><td><b>Per Person Share</b></td><td>${result.per_person_share.toFixed(2)}</td></tr>
+    </table>
+    
+    <br/>
+    <h3>Settlements</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Spent</th>
+                <th>Tip/Tax Paid</th>
+                <th>Sponsor Cost</th>
+                <th>Share Cost</th>
+                <th>Balance</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+`;
 
     result.settlements.forEach(item => {
         let action = "";
-        let color = "";
+        let bgColor = "";
         if (item.balance < -0.01) {
             action = `Pay ${Math.abs(item.balance).toFixed(2)}`;
-            color = "#fed7d7"; // Light red
+            bgColor = "#fed7d7"; // Light red
         } else if (item.balance > 0.01) {
             action = `Receive ${item.balance.toFixed(2)}`;
-            color = "#c6f6d5"; // Light green
+            bgColor = "#c6f6d5"; // Light green
         } else {
             action = "Settled";
-            color = "#ffffff";
+            bgColor = "#ffffff";
         }
 
         html += `
             <tr>
                 <td>${item.name}</td>
-                <td>${item.amount_spent.toFixed(2)}</td>
-                <td>${item.tip_paid.toFixed(2)}</td>
-                <td>${item.sponsor_cost.toFixed(2)}</td>
-                <td>${item.share_cost.toFixed(2)}</td>
-                <td style="background-color: ${color}">${item.balance.toFixed(2)}</td>
-                <td style="background-color: ${color}">${action}</td>
+                <td style="text-align: right;">${item.amount_spent.toFixed(2)}</td>
+                <td style="text-align: right;">${item.tip_paid.toFixed(2)}</td>
+                <td style="text-align: right;">${item.sponsor_cost.toFixed(2)}</td>
+                <td style="text-align: right;">${item.share_cost.toFixed(2)}</td>
+                <td style="text-align: right; background-color: ${bgColor}; font-weight: bold;">${item.balance.toFixed(2)}</td>
+                <td style="background-color: ${bgColor}; font-weight: bold;">${action}</td>
             </tr>
-        `;
+`;
     });
 
     html += `
-            </tbody>
-        </table>
-    </body>
-    </html>
-    `;
+        </tbody>
+    </table>
+</body>
+</html>
+`;
 
     const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
@@ -1190,6 +1196,7 @@ function exportToExcel() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 // Tab switching
