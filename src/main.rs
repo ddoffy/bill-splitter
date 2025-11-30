@@ -358,8 +358,8 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
         sponsor_amount: f64,
         is_sponsor: bool,
         is_receiver: bool,
-        will_pay_for_others: f64,  // Amount they will pay for others (not themselves)
-        amount_paid_by_others: f64, // Amount that others will pay for them
+        will_receive_from_others: f64,  // Amount they will receive as reimbursement
+        owes_to_others: f64, // Amount they owe to reimburse others
         delegated_self: f64, // Amount they marked as paid_by themselves (private expense)
     }
 
@@ -373,17 +373,14 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
             sponsor_amount: 0.0,
             is_sponsor: false,
             is_receiver: false,
-            will_pay_for_others: 0.0,
-            amount_paid_by_others: 0.0,
+            will_receive_from_others: 0.0,
+            owes_to_others: 0.0,
             delegated_self: 0.0,
         });
 
-        // Only add to amount_spent if this expense is NOT delegated to someone else
-        // (i.e., the person is paying for it themselves in the normal way)
-        if person.paid_by.is_none() {
-            entry.amount_spent += person.amount_spent * person.quantity as f64;
-            entry.tip += person.tip;
-        }
+        // Add to amount_spent - this person actually paid this expense
+        entry.amount_spent += person.amount_spent * person.quantity as f64;
+        entry.tip += person.tip;
         
         entry.sponsor_amount += person.sponsor_amount;
         if person.is_sponsor {
@@ -401,11 +398,11 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
                 // Self-payment: mark as private expense
                 entry.delegated_self += total_expense;
             } else {
-                // Someone else is paying for this expense
-                // Add to the current person's "amount_paid_by_others"
-                entry.amount_paid_by_others += total_expense;
+                // Someone else will reimburse this person for this expense
+                // The current person (who actually paid) will receive reimbursement
+                entry.will_receive_from_others += total_expense;
                 
-                // Add to the payer's "will_pay_for_others" amount
+                // The designated payer owes this amount
                 let payer_entry = grouped_people.entry(payer_name.clone()).or_insert(PersonSummary {
                     name: payer_name.clone(),
                     amount_spent: 0.0,
@@ -413,11 +410,11 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
                     sponsor_amount: 0.0,
                     is_sponsor: false,
                     is_receiver: false,
-                    will_pay_for_others: 0.0,
-                    amount_paid_by_others: 0.0,
+                    will_receive_from_others: 0.0,
+                    owes_to_others: 0.0,
                     delegated_self: 0.0,
                 });
-                payer_entry.will_pay_for_others += total_expense;
+                payer_entry.owes_to_others += total_expense;
             }
         }
     }
@@ -437,7 +434,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     
     // Calculate all delegated expenses (all expenses with paid_by set, including self-payment)
     // These should be excluded from the amount to share
-    let all_delegated_expenses: f64 = unique_people.iter().map(|p| p.will_pay_for_others + p.delegated_self).sum();
+    let all_delegated_expenses: f64 = unique_people.iter().map(|p| p.will_receive_from_others + p.delegated_self).sum();
     
     // Sponsorship is a fixed amount, not affected by tip/tax
     let total_sponsored: f64 = unique_people.iter().map(|p| p.sponsor_amount).sum();
@@ -506,17 +503,16 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
                 0.0
             };
 
-            // What they should pay: sponsor_cost + share_cost + delegated_self
-            // amount_paid_by_others is NOT included because someone else is paying it
-            // delegated_self IS included because they marked it as their own private expense
-            let total_cost = sponsor_cost + share_cost + person.delegated_self;
+            // What they should pay: sponsor_cost + share_cost + delegated_self + owes_to_others
+            // delegated_self is their private expense
+            // owes_to_others is reimbursements they owe to people
+            let total_cost = sponsor_cost + share_cost + person.delegated_self + person.owes_to_others;
 
             // Balance calculation:
-            // What they actually paid: amount_spent + tip_paid + will_pay_for_others
-            // We don't subtract amount_paid_by_others here because it's not in amount_spent
-            // (we already excluded it when aggregating)
+            // What they actually paid: amount_spent + tip_paid + will_receive_from_others
+            // will_receive_from_others adds to what they paid (they'll be reimbursed)
             // What they should pay: total_cost
-            let balance = (person.amount_spent + tip_paid + person.will_pay_for_others) - total_cost;
+            let balance = (person.amount_spent + tip_paid + person.will_receive_from_others) - total_cost;
 
             let settlement_type = if balance > 0.01 {
                 "receive".to_string()
