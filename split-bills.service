@@ -9,6 +9,7 @@ WorkingDirectory=/home/doffy/workspace/rust/split-bills
 ExecStart=/home/doffy/workspace/rust/split-bills/target/release/split-bills
 Restart=always
 Environment=RUST_LOG=info
+Environment=BASE_URL=https://billsplitter.ddoffy.org
 Environment=OPENAI_API_MODEL=gpt-4o-mini
 Environment=OPENAI_API_KEY=sk-YOUR_KEY_HERE
 Environment=RESEND_API_KEY=your_resend_key_here

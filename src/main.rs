@@ -24,7 +24,9 @@ mod image_utils;
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate;
+struct IndexTemplate {
+    base_url: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Person {
@@ -222,7 +224,9 @@ async fn cleanup_expired_sessions(pool: &SqlitePool) {
 }
 
 async fn index() -> impl IntoResponse {
-    Html(IndexTemplate.render().unwrap())
+    let base_url = std::env::var("BASE_URL")
+        .unwrap_or_else(|_| "https://billsplitter.ddoffy.org".to_string());
+    IndexTemplate { base_url }
 }
 
 async fn create_session(

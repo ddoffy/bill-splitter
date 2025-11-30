@@ -3,9 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bill Splitter</title>
+    <title>Bill Splitter - Split Bills & Expenses Easily with AI</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Free bill splitting app with AI-powered expense parsing. Split restaurant bills, group expenses, and calculate who owes what. Supports multiple languages, image scanning, and custom sponsorships.">
+    <meta name="keywords" content="bill splitter, split bills, expense calculator, group expenses, restaurant bill split, AI bill parser, share expenses, cost sharing, split calculator, group payment">
+    <meta name="author" content="Bill Splitter">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ base_url }}/">
+    <meta property="og:title" content="Bill Splitter - Split Bills & Expenses Easily with AI">
+    <meta property="og:description" content="Free bill splitting app with AI-powered expense parsing. Split restaurant bills and group expenses fairly with advanced features like sponsors and delegated payments.">
+    <meta property="og:image" content="{{ base_url }}/static/og-image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ base_url }}/">
+    <meta property="twitter:title" content="Bill Splitter - Split Bills & Expenses Easily with AI">
+    <meta property="twitter:description" content="Free bill splitting app with AI-powered expense parsing. Split restaurant bills and group expenses fairly.">
+    <meta property="twitter:image" content="{{ base_url }}/static/og-image.png">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{{ base_url }}/">
+    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
     <link rel="stylesheet" href="/static/styles.css">
+    
+    <!-- Schema.org markup for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Bill Splitter",
+      "applicationCategory": "FinanceApplication",
+      "description": "Free bill splitting app with AI-powered expense parsing. Split restaurant bills and group expenses fairly.",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": "AI expense parsing, Image scanning, Manual entry, Multi-language support, Sponsor tracking, Custom tip calculation, Delegated payments"
+    }
+    </script>
 </head>
 <body>
     <div class="container" style="max-width: 1200px;">

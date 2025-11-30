@@ -10,6 +10,14 @@ CURRENT_USER=$(whoami)
 echo "🚀 Setting up Split Bills service..."
 echo "📂 Project Directory: $PROJECT_DIR"
 echo "👤 User: $CURRENT_USER"
+echo ""
+
+# Prompt for BASE_URL
+echo "🌐 Enter your domain URL (e.g., https://billsplitter.ddoffy.org):"
+read -p "BASE_URL [default: http://localhost:7777]: " BASE_URL_INPUT
+BASE_URL=${BASE_URL_INPUT:-http://localhost:7777}
+echo "✓ Using BASE_URL: $BASE_URL"
+echo ""
 
 # Update the service file with current paths and user
 # This ensures it works even if the folder is moved or user is different
@@ -17,6 +25,13 @@ echo "📝 Updating service configuration..."
 sed -i "s|WorkingDirectory=.*|WorkingDirectory=$PROJECT_DIR|g" split-bills.service
 sed -i "s|ExecStart=.*|ExecStart=$PROJECT_DIR/target/release/split-bills|g" split-bills.service
 sed -i "s|User=.*|User=$CURRENT_USER|g" split-bills.service
+
+# Update or add BASE_URL in the service file
+if grep -q "Environment=BASE_URL=" split-bills.service; then
+    sed -i "s|Environment=BASE_URL=.*|Environment=BASE_URL=$BASE_URL|g" split-bills.service
+else
+    sed -i "/Environment=RUST_LOG=/a Environment=BASE_URL=$BASE_URL" split-bills.service
+fi
 
 echo "🔨 Building release binary..."
 cargo build --release
