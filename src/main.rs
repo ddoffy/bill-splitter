@@ -447,7 +447,7 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
     // The amount that needs to be shared among participants
     // Subtract all delegated expenses (including self-payment) because those are private transactions
     // Fund amount is flat cash, so it's subtracted from the total needed
-    let amount_to_share = total_spent_with_tip - effective_total_sponsored - fund_amount - all_delegated_expenses;
+    let amount_to_share = (total_spent_with_tip - effective_total_sponsored - fund_amount - all_delegated_expenses).max(0.0);
 
     let participants: Vec<&PersonSummary> = if include_sponsor {
         unique_people.iter().collect()
