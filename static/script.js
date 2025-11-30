@@ -404,7 +404,7 @@ function handleAddPerson(e) {
     let tip = 0;
     if (hasExpenseTipCheckbox && hasExpenseTipCheckbox.checked && expenseTipPercentageInput) {
         const percentage = parseFloat(expenseTipPercentageInput.value) || 0;
-        tip = amount * (percentage / 100);
+        tip = (amount * quantity) * (percentage / 100);
     }
     const isSponsor = isSponsorCheckbox.checked;
     const sponsorAmount = isSponsor ? parseFloat(sponsorAmountInput.value.replace(/,/g, '')) : 0;
@@ -497,7 +497,8 @@ function editPerson(id) {
         toggleExpenseTip();
         
         if (hasExpenseTipCheckbox.checked && expenseTipPercentageInput) {
-             const percentage = person.amount_spent > 0 ? (person.tip / person.amount_spent) * 100 : 0;
+             const totalAmount = person.amount_spent * (person.quantity || 1);
+             const percentage = totalAmount > 0 ? (person.tip / totalAmount) * 100 : 0;
              expenseTipPercentageInput.value = parseFloat(percentage.toFixed(2));
         }
     }
@@ -618,7 +619,7 @@ function renderPeople(people) {
                     ${person.tip > 0 ? `
                         <br>
                         <span style="font-size: 0.9em; color: #666;">
-                            Tip/Tax: $${formatMoney(person.tip)} (${parseFloat(((person.tip / person.amount_spent) * 100).toFixed(1))}%)
+                            Tip/Tax: $${formatMoney(person.tip)} (${parseFloat(((person.tip / (person.amount_spent * (person.quantity || 1))) * 100).toFixed(1))}%)
                         </span>
                         <br>
                         <span style="font-weight: bold;">
@@ -1410,7 +1411,8 @@ function populateFormFromAi(data, payerName = "Unknown", tipPercentage = 0) {
     if (data.items && data.items.length > 0) {
         // Add items directly to the list
         data.items.forEach((item, index) => {
-            const tipAmount = item.amount * (tipPercentage / 100);
+            const quantity = item.quantity || 1;
+            const tipAmount = (item.amount * quantity) * (tipPercentage / 100);
             const newPerson = {
                 id: Date.now() + index,
                 name: payerName,
