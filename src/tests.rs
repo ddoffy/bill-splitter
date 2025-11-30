@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::super::*;
+    use crate::models::*;
+    use crate::calculate_split_internal;
 
     fn create_person(
         id: u64,

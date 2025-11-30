@@ -1,19 +1,20 @@
 use axum::{
     extract::{State, Multipart},
-    response::{Html, IntoResponse},
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
-use askama::Template;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions, FromRow};
+use chrono::Utc;
+use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+
+mod models;
+use models::*;
 
 mod ai;
 use ai::{AiProvider, OpenAiProvider};
@@ -25,118 +26,6 @@ mod image_utils;
 mod tests;
 
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    base_url: String,
-}
-
-fn default_quantity() -> u32 {
-    1
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Person {
-    id: u64,
-    name: String,
-    description: String,
-    amount_spent: f64,
-    #[serde(default = "default_quantity")]
-    quantity: u32,
-    #[serde(default)]
-    tip: f64,
-    is_sponsor: bool,
-    sponsor_amount: f64,
-    #[serde(default)]
-    is_receiver: bool,
-    #[serde(default)]
-    paid_by: Option<String>,
-}
-
-#[derive(Debug, FromRow)]
-struct DbSession {
-    id: String,
-    edit_secret: String,
-    people: String,
-    created_at: DateTime<Utc>,
-    last_accessed_at: DateTime<Utc>,
-    #[sqlx(default)]
-    fund_amount: f64,
-    #[sqlx(default)]
-    tip_percentage: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct CreateSessionRequest {
-    people: Vec<Person>,
-    #[serde(default)]
-    fund_amount: f64,
-    #[serde(default)]
-    tip_percentage: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct CreateSessionResponse {
-    id: String,
-    edit_secret: String,
-}
-
-#[derive(Debug, Serialize)]
-struct GetSessionResponse {
-    people: Vec<Person>,
-    fund_amount: f64,
-    tip_percentage: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct UpdateSessionRequest {
-    people: Vec<Person>,
-    #[serde(default)]
-    fund_amount: f64,
-    #[serde(default)]
-    tip_percentage: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct CalculateRequest {
-    people: Vec<Person>,
-    include_sponsor: bool,
-    restrict_sponsor_to_spent: Option<bool>,
-    #[serde(default)]
-    fund_amount: f64,
-    #[serde(default)]
-    tip_percentage: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct Settlement {
-    name: String,
-    amount_spent: f64,
-    tip_paid: f64,
-    sponsor_cost: f64,
-    share_cost: f64,
-    balance: f64,
-    settlement_type: String,
-    is_receiver: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct CalculateResponse {
-    total_spent: f64,
-    total_sponsored: f64,
-    fund_amount: f64,
-    total_tip: f64,
-    amount_to_share: f64,
-    num_participants: usize,
-    per_person_share: f64,
-    settlements: Vec<Settlement>,
-}
-
-#[derive(Clone)]
-struct AppState {
-    pool: SqlitePool,
-    processed_requests: Arc<Mutex<HashMap<String, DateTime<Utc>>>>,
-}
 
 const SESSION_EXPIRY_DAYS: i64 = 7;
 
@@ -353,23 +242,11 @@ async fn calculate_split(Json(request): Json<CalculateRequest>) -> Json<Calculat
 fn calculate_split_internal(request: CalculateRequest) -> CalculateResponse {
     let people = request.people;
     let include_sponsor = request.include_sponsor;
-    let restrict_sponsor = request.restrict_sponsor_to_spent.unwrap_or(true);
+    let _restrict_sponsor = request.restrict_sponsor_to_spent.unwrap_or(true);
     let fund_amount = request.fund_amount;
     let tip_percentage = request.tip_percentage;
 
     // Group people by name to handle multiple entries for the same person
-    struct PersonSummary {
-        name: String,
-        amount_spent: f64,
-        tip: f64,
-        sponsor_amount: f64,
-        is_sponsor: bool,
-        is_receiver: bool,
-        will_receive_from_others: f64,  // Amount they will receive as reimbursement
-        owes_to_others: f64, // Amount they owe to reimburse others
-        delegated_self: f64, // Amount they marked as paid_by themselves (private expense)
-    }
-
     let mut grouped_people: HashMap<String, PersonSummary> = HashMap::new();
 
     for person in &people {
@@ -569,11 +446,6 @@ fn calculate_split_internal(request: CalculateRequest) -> CalculateResponse {
     }
 }
 
-#[derive(Deserialize)]
-struct AiTextRequest {
-    text: String,
-}
-
 async fn process_ai_text(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -658,15 +530,6 @@ async fn process_ai_image(
         }
     }
     (axum::http::StatusCode::BAD_REQUEST, "No image field found").into_response()
-}
-
-#[derive(Deserialize)]
-struct SendEmailRequest {
-    to: Vec<String>,
-    subject: String,
-    html_content: String,
-    cc: Option<Vec<String>>,
-    bcc: Option<Vec<String>>,
 }
 
 async fn send_email_handler(Json(payload): Json<SendEmailRequest>) -> impl IntoResponse {
