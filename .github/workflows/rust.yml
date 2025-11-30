@@ -102,10 +102,31 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [build, test]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
 
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Validate deployment configuration
+      run: |
+        if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+          echo "❌ Error: DEPLOY_HOST secret is not set"
+          echo "Please configure deployment secrets in Settings → Secrets and variables → Actions"
+          exit 1
+        fi
+        if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
+          echo "❌ Error: DEPLOY_USER secret is not set"
+          exit 1
+        fi
+        if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+          echo "❌ Error: DEPLOY_SSH_KEY secret is not set"
+          exit 1
+        fi
+        if [ -z "${{ vars.DEPLOY_PATH }}" ]; then
+          echo "❌ Error: DEPLOY_PATH variable is not set"
+          exit 1
+        fi
+        echo "✅ All deployment secrets and variables are configured"
     
     - name: Setup Cloudflare Tunnel
       run: |
