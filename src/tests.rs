@@ -275,4 +275,301 @@ mod tests {
         assert!((response.total_tip - 10.0).abs() < 0.01); // Use approximate equality for floating point
         assert!((response.per_person_share - 55.0).abs() < 0.01); // Use approximate equality
     }
+
+    #[test]
+    fn test_sponsor_expense() {
+        // Test sponsor functionality: one person sponsors for everyone
+        let mut alice = create_person(1, "Alice", 100.0, 1, 0.0, None);
+        alice.is_sponsor = true;
+        alice.sponsor_amount = 100.0;
+
+        let people = vec![
+            alice,
+            create_person(2, "Bob", 50.0, 1, 0.0, None),
+            create_person(3, "Charlie", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: true,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.total_sponsored, 100.0);
+        // 50 should be shared (Bob's expense), 100 sponsored
+        assert_eq!(response.amount_to_share, 50.0);
+        
+        let alice = response.settlements.iter().find(|s| s.name == "Alice").unwrap();
+        // Alice sponsored 100, which reduces others' bills but not counted in her balance
+        assert!(alice.sponsor_cost > 0.0);
+    }
+
+    #[test]
+    fn test_fund_amount() {
+        // Test with a fund pool that reduces everyone's share
+        let people = vec![
+            create_person(1, "Alice", 100.0, 1, 0.0, None),
+            create_person(2, "Bob", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 20.0, // $20 fund reduces total
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.fund_amount, 20.0);
+        // Amount to share = 100 - 20 = 80
+        assert_eq!(response.amount_to_share, 80.0);
+        assert_eq!(response.per_person_share, 40.0);
+
+        let alice = response.settlements.iter().find(|s| s.name == "Alice").unwrap();
+        let bob = response.settlements.iter().find(|s| s.name == "Bob").unwrap();
+
+        // Alice paid 100, should pay 40 = +60
+        assert_eq!(alice.balance, 60.0);
+        // Bob paid 0, should pay 40 = -40
+        assert_eq!(bob.balance, -40.0);
+    }
+
+    #[test]
+    fn test_empty_people_list() {
+        let people = vec![];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.total_spent, 0.0);
+        assert_eq!(response.num_participants, 0);
+        assert_eq!(response.settlements.len(), 0);
+    }
+
+    #[test]
+    fn test_single_person() {
+        let people = vec![
+            create_person(1, "Alice", 100.0, 1, 10.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.total_spent, 110.0);
+        assert_eq!(response.num_participants, 1);
+        assert_eq!(response.per_person_share, 110.0);
+
+        let alice = response.settlements.iter().find(|s| s.name == "Alice").unwrap();
+        // Alice pays for herself, balance should be 0
+        assert_eq!(alice.balance, 0.0);
+        assert_eq!(alice.settlement_type, "settled");
+    }
+
+    #[test]
+    fn test_receiver_flag() {
+        // Test is_receiver flag behavior
+        let mut alice = create_person(1, "Alice", 100.0, 1, 0.0, None);
+        alice.is_receiver = true;
+
+        let people = vec![
+            alice,
+            create_person(2, "Bob", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        let alice = response.settlements.iter().find(|s| s.name == "Alice").unwrap();
+        assert!(alice.is_receiver);
+    }
+
+    #[test]
+    fn test_large_quantity() {
+        // Test with large quantity multiplier
+        let people = vec![
+            create_person(1, "Alice", 10.0, 100, 5.0, None), // $1000 + $5 tip
+            create_person(2, "Bob", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.total_spent, 1005.0);
+        assert_eq!(response.per_person_share, 502.5);
+    }
+
+    #[test]
+    fn test_all_private_expenses() {
+        // Everyone has private expenses, nothing to split
+        let people = vec![
+            create_person(1, "Alice", 100.0, 1, 0.0, Some("Alice".to_string())),
+            create_person(2, "Bob", 50.0, 1, 0.0, Some("Bob".to_string())),
+            create_person(3, "Charlie", 75.0, 1, 0.0, Some("Charlie".to_string())),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.amount_to_share, 0.0);
+        assert_eq!(response.per_person_share, 0.0);
+
+        // Everyone should be settled (balance 0)
+        for settlement in &response.settlements {
+            assert_eq!(settlement.balance, 0.0);
+            assert_eq!(settlement.settlement_type, "settled");
+        }
+    }
+
+    #[test]
+    fn test_duplicate_names() {
+        // Test that duplicate names are grouped correctly
+        let people = vec![
+            create_person(1, "Alice", 100.0, 1, 10.0, None),
+            create_person(2, "Alice", 50.0, 1, 5.0, None), // Same name, different expense
+            create_person(3, "Bob", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        // Should have 2 unique people in settlements (Alice, Bob)
+        assert_eq!(response.settlements.len(), 2);
+
+        let alice = response.settlements.iter().find(|s| s.name == "Alice").unwrap();
+        // Alice's base expenses are combined: 100 + 50 = 150 (tips are tracked separately)
+        assert_eq!(alice.amount_spent, 150.0);
+        // Tips are also combined: 10 + 5 = 15
+        assert_eq!(alice.tip_paid, 15.0);
+    }
+
+    #[test]
+    fn test_zero_amounts() {
+        // Test handling of zero amounts
+        let people = vec![
+            create_person(1, "Alice", 0.0, 1, 0.0, None),
+            create_person(2, "Bob", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.total_spent, 0.0);
+        assert_eq!(response.amount_to_share, 0.0);
+        
+        for settlement in &response.settlements {
+            assert_eq!(settlement.balance, 0.0);
+            assert_eq!(settlement.settlement_type, "settled");
+        }
+    }
+
+    #[test]
+    fn test_high_tip_percentage() {
+        // Test with high tip percentage
+        let people = vec![
+            create_person(1, "Alice", 100.0, 1, 0.0, None),
+            create_person(2, "Bob", 100.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 25.0, // 25% tip
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.total_spent, 200.0);
+        // 25% of 200 = 50
+        assert!((response.total_tip - 50.0).abs() < 0.01);
+        // Total with tip: 250, split by 2
+        assert!((response.per_person_share - 125.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_reimbursement_with_tip() {
+        // Test reimbursement where the expense includes a tip
+        let people = vec![
+            create_person(1, "Alice", 100.0, 1, 20.0, Some("Bob".to_string())),
+            create_person(2, "Bob", 0.0, 1, 0.0, None),
+        ];
+
+        let request = CalculateRequest {
+            people,
+            include_sponsor: false,
+            restrict_sponsor_to_spent: Some(true),
+            fund_amount: 0.0,
+            tip_percentage: 0.0,
+        };
+
+        let response = calculate_split_internal(request);
+
+        assert_eq!(response.amount_to_share, 0.0);
+
+        let alice = response.settlements.iter().find(|s| s.name == "Alice").unwrap();
+        let bob = response.settlements.iter().find(|s| s.name == "Bob").unwrap();
+
+        // Alice should receive 120 (100 + 20 tip)
+        assert_eq!(alice.balance, 120.0);
+        // Note: tip_paid might be 0 in the settlement if tips are tracked differently in reimbursements
+        
+        // Bob should pay 120
+        assert_eq!(bob.balance, -120.0);
+    }
 }
