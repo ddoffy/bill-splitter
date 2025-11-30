@@ -12,10 +12,17 @@ echo "📂 Project Directory: $PROJECT_DIR"
 echo "👤 User: $CURRENT_USER"
 echo ""
 
-# Prompt for BASE_URL
-echo "🌐 Enter your domain URL (e.g., https://billsplitter.ddoffy.org):"
-read -p "BASE_URL [default: http://localhost:7777]: " BASE_URL_INPUT
-BASE_URL=${BASE_URL_INPUT:-http://localhost:7777}
+# Get BASE_URL from first parameter or prompt
+BASE_URL_INPUT="$1"
+
+if [ -z "$BASE_URL_INPUT" ]; then
+    echo "🌐 Enter your domain URL (e.g., https://billsplitter.ddoffy.org):"
+    read -p "BASE_URL [default: http://localhost:7777]: " BASE_URL_INPUT
+    BASE_URL=${BASE_URL_INPUT:-http://localhost:7777}
+else
+    BASE_URL="$BASE_URL_INPUT"
+fi
+
 echo "✓ Using BASE_URL: $BASE_URL"
 echo ""
 
