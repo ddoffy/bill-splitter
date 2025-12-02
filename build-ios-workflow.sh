@@ -54,9 +54,35 @@ echo "✅ Code synced"
 echo ""
 
 # Setup environment on Mac (first time only)
+echo "🔧 Checking Mac environment..."
+if ! ssh "$MAC_USER@$MAC_HOST" "xcodebuild -version" &> /dev/null; then
+    echo ""
+    echo "❌ Xcode not found on Mac"
+    echo ""
+    echo "Please install Xcode on your Mac first:"
+    echo ""
+    echo "From your Mac (via SSH):"
+    echo "   ssh $MAC_USER@$MAC_HOST"
+    echo "   cd $MAC_PROJECT_DIR"
+    echo "   ./install-xcode-mac.sh"
+    echo ""
+    echo "Or manually:"
+    echo "   1. Open App Store on Mac"
+    echo "   2. Search and install 'Xcode'"
+    echo "   3. Wait for installation (~15GB, 30-60 min)"
+    echo "   4. Run: sudo xcodebuild -license accept"
+    echo "   5. Run this script again"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Xcode found on Mac"
+echo ""
+
 echo "🔧 Setting up Mac environment (if needed)..."
 ssh "$MAC_USER@$MAC_HOST" "cd $MAC_PROJECT_DIR && chmod +x *.sh && ./setup-mac-headless.sh" || {
-    echo "⚠️  Setup may have failed, but continuing..."
+    echo "❌ Setup failed"
+    exit 1
 }
 
 echo ""
