@@ -12,7 +12,13 @@
     "copy": "npx cap copy",
     "update": "npx cap update",
     "build:web": "echo 'No build step needed - using static files'",
-    "dev": "echo 'Run: cargo run' to start the backend server"
+    "dev": "echo 'Run: cargo run' to start the backend server",
+    "android:build": "cd android && ./gradlew assembleDebug",
+    "android:release": "cd android && ./gradlew assembleRelease",
+    "android:install": "cd android && ./gradlew installDebug",
+    "android:logs": "./logs-android.sh",
+    "test:android": "./test-android.sh",
+    "test:quick": "./quick-test-android.sh"
   },
   "repository": {
     "type": "git",
