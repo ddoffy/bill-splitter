@@ -1,0 +1,34 @@
+{
+  "name": "split-bills",
+  "version": "1.0.0",
+  "description": "A web application built with Rust and Axum for splitting bills after a party.",
+  "main": "index.js",
+  "scripts": {
+    "sync": "npx cap sync",
+    "sync:ios": "npx cap sync ios",
+    "sync:android": "npx cap sync android",
+    "open:ios": "npx cap open ios",
+    "open:android": "npx cap open android",
+    "copy": "npx cap copy",
+    "update": "npx cap update",
+    "build:web": "echo 'No build step needed - using static files'",
+    "dev": "echo 'Run: cargo run' to start the backend server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ddoffy/bill-splitter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ddoffy/bill-splitter/issues"
+  },
+  "homepage": "https://github.com/ddoffy/bill-splitter#readme",
+  "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4"
+  }
+}

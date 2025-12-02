@@ -1,6 +1,6 @@
 # Bill Splitter
 
-A web application built with Rust and Axum for splitting bills after a party.
+A web application built with Rust and Axum for splitting bills after a party. **Now with native iOS and Android support!** 📱
 
 ## Features
 
@@ -11,12 +11,15 @@ A web application built with Rust and Axum for splitting bills after a party.
 - ✅ Beautiful, responsive web interface
 - ✅ RESTful API backend with Axum
 - ✅ Server-side rendering with Askama templates
+- 🆕 **Native iOS app** - Build and run on iPhone/iPad
+- 🆕 **Native Android app** - Build and run on Android devices
 
 ## Tech Stack
 
 - **Backend**: Rust with Axum web framework
 - **Templating**: Askama
 - **Frontend**: Vanilla JavaScript with Fetch API
+- **Mobile**: Capacitor (native iOS/Android apps)
 - **Styling**: Custom CSS
 
 ## Project Structure
@@ -24,16 +27,23 @@ A web application built with Rust and Axum for splitting bills after a party.
 ```
 split-bills/
 ├── Cargo.toml              # Rust dependencies
+├── package.json            # Node.js dependencies for mobile
+├── capacitor.config.json   # Mobile app configuration
 ├── src/
 │   └── main.rs            # Axum server and API endpoints
 ├── templates/
 │   └── index.html         # Main HTML template
-└── static/
-    ├── styles.css         # Stylesheet
-    └── script.js          # Frontend JavaScript
+├── static/
+│   ├── styles.css         # Stylesheet
+│   ├── script.js          # Frontend JavaScript
+│   └── index.html         # Mobile app entry point
+├── ios/                    # iOS native project (generated)
+└── android/                # Android native project (generated)
 ```
 
 ## How to Run
+
+### Web Version
 
 1. **Install Rust** (if not already installed):
    ```bash
@@ -49,6 +59,25 @@ split-bills/
    ```
    http://127.0.0.1:8080
    ```
+
+### Mobile Apps (iOS/Android)
+
+For detailed instructions on building and running the native mobile apps, see **[MOBILE.md](MOBILE.md)**.
+
+Quick start:
+```bash
+# Run the setup script
+./setup-mobile.sh
+
+# Start the backend
+cargo run
+
+# Open in Xcode (iOS)
+npm run open:ios
+
+# Or open in Android Studio (Android)
+npm run open:android
+```
 
 ## Usage
 

@@ -1,0 +1,15 @@
+{
+  "appId": "org.ddoffy.splitbills",
+  "appName": "Split Bills",
+  "webDir": "static",
+  "server": {
+    "url": "https://billsplitter.ddoffy.org",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

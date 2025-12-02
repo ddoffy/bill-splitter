@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Splitter - Split Bills & Expenses Easily with AI</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Free bill splitting app with AI-powered expense parsing. Split restaurant bills, group expenses, and calculate who owes what. Supports multiple languages, image scanning, and custom sponsorships.">
+    <meta name="keywords" content="bill splitter, split bills, expense calculator, group expenses, restaurant bill split, AI bill parser, share expenses, cost sharing, split calculator, group payment">
+    <meta name="author" content="Bill Splitter">
+    <meta name="robots" content="index, follow">
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
+    <link rel="stylesheet" href="/static/styles.css">
+    
+    <!-- Capacitor Core -->
+    <script type="module" src="/static/capacitor.js"></script>
+</head>
+<body>
+    <div class="container" style="max-width: 1200px;">
+        <h1><a href="/" style="text-decoration: none; color: inherit;">💰 Bill Splitter</a></h1>
+        
+        <div id="app-root">
+            <!-- Content will be loaded from the server -->
+            <div style="text-align: center; padding: 40px;">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // For mobile app, fetch content from API
+        async function loadContent() {
+            try {
+                const response = await fetch('/');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.container');
+                if (content) {
+                    document.querySelector('.container').innerHTML = content.innerHTML;
+                }
+            } catch (error) {
+                console.error('Failed to load content:', error);
+            }
+        }
+
+        // Check if running in Capacitor (native app)
+        if (window.Capacitor) {
+            // Native app - load content from server
+            loadContent();
+        } else {
+            // Web - redirect to server
+            window.location.href = '/';
+        }
+    </script>
+    
+    <script src="/static/script.js?v=1"></script>
+</body>
+</html>
