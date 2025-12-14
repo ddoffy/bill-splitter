@@ -7,6 +7,39 @@ let currentEditSecret = null;
 let isReadOnly = false;
 let lastCalculationResult = null;
 
+// Hybrid calculator state
+let hybridCalculatorReady = false;
+
+// Initialize hybrid calculator for offline support
+async function initHybridCalculator() {
+    try {
+        // Register service worker for offline caching
+        if ('serviceWorker' in navigator) {
+            try {
+                const registration = await navigator.serviceWorker.register('/static/sw.js');
+                console.log('[App] Service worker registered:', registration.scope);
+            } catch (swError) {
+                console.warn('[App] Service worker registration failed:', swError.message);
+            }
+        }
+        
+        // Load the hybrid calculator module
+        await import('/static/hybrid-calculator.js');
+        
+        if (window.HybridCalculator) {
+            await window.HybridCalculator.init();
+            hybridCalculatorReady = true;
+            console.log('[App] Hybrid calculator initialized');
+            
+            // Update offline indicator
+            window.HybridCalculator.updateIndicator();
+        }
+    } catch (error) {
+        console.warn('[App] Hybrid calculator not available:', error.message);
+        // App will fall back to server-only mode
+    }
+}
+
 // DOM elements
 const addPersonForm = document.getElementById('addPersonForm');
 const personNameInput = document.getElementById('personName');
@@ -226,6 +259,9 @@ function formatInputMoney(input) {
 init();
 
 async function init() {
+    // Initialize hybrid calculator (WASM + server)
+    initHybridCalculator();
+    
     loadHistoryFromLocalStorage();
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -722,7 +758,7 @@ function setReceiver(id) {
     savePeople();
 }
 
-// Calculate bill split
+// Calculate bill split (hybrid: server + WASM fallback)
 async function calculateSplit() {
     try {
         if (people.length === 0) {
@@ -734,24 +770,41 @@ async function calculateSplit() {
         const fundAmount = fundAmountInput ? (parseFloat(fundAmountInput.value.replace(/,/g, '')) || 0) : 0;
         const tipPercentage = (addTipCheckbox && addTipCheckbox.checked && tipPercentageInput) ? (parseFloat(tipPercentageInput.value) || 0) : 0;
         
-        const calcResponse = await fetch('/api/calculate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                people,
-                include_sponsor: includeSponsor,
-                fund_amount: fundAmount,
-                tip_percentage: tipPercentage
-            })
-        });
+        const request = {
+            people,
+            include_sponsor: includeSponsor,
+            fund_amount: fundAmount,
+            tip_percentage: tipPercentage
+        };
         
-        if (!calcResponse.ok) {
-            throw new Error('Calculation failed');
+        let result;
+        
+        // Use hybrid calculator if available
+        if (window.HybridCalculator && hybridCalculatorReady) {
+            result = await window.HybridCalculator.calculate(request);
+            window.HybridCalculator.updateIndicator();
+            
+            // Log which backend was used
+            if (result._source) {
+                console.log(`[Calculate] Used ${result._source} backend`);
+            }
+        } else {
+            // Fallback to direct server call
+            const calcResponse = await fetch('/api/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(request)
+            });
+            
+            if (!calcResponse.ok) {
+                throw new Error('Calculation failed');
+            }
+            
+            result = await calcResponse.json();
         }
         
-        const result = await calcResponse.json();
         lastCalculationResult = result; // Save the last calculation result
         
         if (result.num_participants === 0 && result.amount_to_share > 0) {
