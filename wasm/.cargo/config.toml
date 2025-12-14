@@ -1,0 +1,5 @@
+[target.wasm32-unknown-unknown]
+# Disable reference-types to avoid the externref table issue
+# which causes "WebAssembly.Table.grow(): failed to grow table" errors
+# in some browsers (especially older versions)
+rustflags = ["-C", "target-feature=-reference-types"]

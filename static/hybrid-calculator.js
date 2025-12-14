@@ -9,6 +9,8 @@
 let wasmModule = null;
 let wasmLoading = false;
 let wasmLoadPromise = null;
+let wasmLoadFailed = false;
+let wasmLoadError = null;
 
 // Connection state
 let isOnline = navigator.onLine;
@@ -118,11 +120,25 @@ async function preloadWasm() {
  */
 async function loadWasm() {
     if (wasmModule) return wasmModule;
+    if (wasmLoadFailed) throw new Error(wasmLoadError || 'WASM previously failed to load');
     
     try {
         // Dynamic import of WASM bindings
         const wasm = await import('/static/wasm/split_bills.js');
-        await wasm.default(); // Initialize WASM
+        
+        // Initialize WASM - this is where externref issues occur
+        try {
+            await wasm.default();
+        } catch (initError) {
+            // Check for externref/Table.grow error
+            if (initError.message && initError.message.includes('Table.grow')) {
+                console.error('[HybridCalc] WASM externref issue - module incompatible with browser');
+                wasmLoadFailed = true;
+                wasmLoadError = 'WASM module requires newer browser features. Please rebuild with reference-types disabled.';
+                throw new Error(wasmLoadError);
+            }
+            throw initError;
+        }
         
         // Verify it's working
         if (wasm.health_check && wasm.health_check()) {
@@ -134,6 +150,8 @@ async function loadWasm() {
         }
     } catch (error) {
         console.error('[HybridCalc] Failed to load WASM:', error);
+        wasmLoadFailed = true;
+        wasmLoadError = error.message;
         throw error;
     }
 }
@@ -238,8 +256,10 @@ export function getCalculatorStatus() {
         serverHealthy,
         wasmLoaded: !!wasmModule,
         wasmLoading,
+        wasmLoadFailed,
+        wasmLoadError,
         wasmVersion: wasmModule ? wasmModule.get_version() : null,
-        preferredBackend: (isOnline && serverHealthy) ? 'server' : 'wasm'
+        preferredBackend: (isOnline && serverHealthy) ? 'server' : (wasmModule ? 'wasm' : 'none')
     };
 }
 
@@ -265,12 +285,16 @@ export function updateOfflineIndicator() {
     
     const status = getCalculatorStatus();
     
-    if (!status.isOnline) {
+    if (status.wasmLoadFailed && !status.serverHealthy) {
+        indicator.textContent = '❌ Offline Mode Unavailable';
+        indicator.className = 'offline-indicator error';
+        indicator.style.display = 'block';
+    } else if (!status.isOnline) {
         indicator.textContent = '📴 Offline Mode (WASM)';
         indicator.className = 'offline-indicator offline';
         indicator.style.display = 'block';
     } else if (!status.serverHealthy) {
-        indicator.textContent = '⚠️ Server Unavailable (WASM)';
+        indicator.textContent = status.wasmLoaded ? '⚠️ Server Unavailable (WASM)' : '⚠️ Connecting...';
         indicator.className = 'offline-indicator degraded';
         indicator.style.display = 'block';
     } else {

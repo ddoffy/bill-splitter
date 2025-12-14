@@ -40,6 +40,11 @@ body {
     color: white;
 }
 
+.offline-indicator.error {
+    background: #ee5a24;
+    color: white;
+}
+
 .container {
     max-width: 800px;
     margin: 0 auto;

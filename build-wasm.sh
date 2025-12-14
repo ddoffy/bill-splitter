@@ -19,6 +19,9 @@ echo ""
 cd "$(dirname "$0")/wasm"
 
 # Build WASM module
+# Note: We disable reference-types via .cargo/config.toml to avoid the externref 
+# table issue which causes "WebAssembly.Table.grow(): failed to grow table" errors
+# in some browsers
 echo "🏗️  Building WASM module..."
 wasm-pack build --target web --out-dir ../static/wasm --out-name split_bills
 
